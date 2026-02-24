@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS Arena - 메인 메뉴</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .logo {
+            font-size: 80px;
+            margin-bottom: 10px;
+            text-shadow: 0 0 30px #0f0, 0 0 60px #0f0;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { text-shadow: 0 0 30px #0f0, 0 0 60px #0f0; }
+            50% { text-shadow: 0 0 50px #0f0, 0 0 100px #0f0; }
+        }
+        
+        h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #0f0;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+        }
+        
+        .subtitle {
+            font-size: 18px;
+            color: #888;
+            margin-bottom: 60px;
+        }
+        
+        .menu-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .menu-card {
+            background: rgba(0, 50, 0, 0.2);
+            border: 2px solid #0f0;
+            border-radius: 15px;
+            padding: 40px 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .menu-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .menu-card:hover::before {
+            left: 100%;
+        }
+        
+        .menu-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 40px rgba(0, 255, 0, 0.3);
+            background: rgba(0, 100, 0, 0.3);
+        }
+        
+        .menu-card.multiplayer {
+            border-color: #00aaff;
+        }
+        
+        .menu-card.multiplayer:hover {
+            box-shadow: 0 10px 40px rgba(0, 170, 255, 0.3);
+            background: rgba(0, 50, 100, 0.3);
+        }
+        
+        .menu-card.character {
+            border-color: #ff6600;
+            grid-column: span 2;
+        }
+        
+        .menu-card.character:hover {
+            box-shadow: 0 10px 40px rgba(255, 102, 0, 0.3);
+            background: rgba(100, 50, 0, 0.3);
+        }
+        
+        .menu-card.character .menu-title {
+            color: #ff6600;
+        }
+        
+        .menu-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        
+        .menu-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .menu-card.single .menu-title {
+            color: #0f0;
+        }
+        
+        .menu-card.multiplayer .menu-title {
+            color: #00aaff;
+        }
+        
+        .menu-card.character .menu-title {
+            color: #ff6600;
+        }
+        
+        .menu-desc {
+            font-size: 14px;
+            color: #aaa;
+            line-height: 1.6;
+        }
+        
+        /* 멀티플레이어 서브메뉴 */
+        .submenu {
+            display: none;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00aaff;
+            border-radius: 15px;
+            padding: 40px;
+            max-width: 500px;
+            margin: 0 auto;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .submenu h2 {
+            color: #00aaff;
+            margin-bottom: 30px;
+            font-size: 32px;
+        }
+        
+        .submenu-options {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .submenu-btn {
+            padding: 20px 40px;
+            font-size: 20px;
+            background: transparent;
+            border: 2px solid #00aaff;
+            color: #00aaff;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .submenu-btn:hover {
+            background: #00aaff;
+            color: #000;
+            box-shadow: 0 0 30px rgba(0, 170, 255, 0.5);
+        }
+        
+        .back-btn {
+            margin-top: 30px;
+            padding: 15px 30px;
+            font-size: 16px;
+            background: transparent;
+            border: 1px solid #666;
+            color: #666;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            border-color: #fff;
+            color: #fff;
+        }
+        
+        /* 방 만들기 화면 */
+        .create-room-screen, .join-room-screen {
+            display: none;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #0f0;
+            border-radius: 15px;
+            padding: 40px;
+            max-width: 500px;
+            margin: 0 auto;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .create-room-screen h2, .join-room-screen h2 {
+            color: #0f0;
+            margin-bottom: 30px;
+        }
+        
+        input {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+            background: #111;
+            border: 2px solid #333;
+            color: #fff;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #0f0;
+        }
+        
+        .room-code-display {
+            background: rgba(0, 255, 0, 0.1);
+            border: 3px dashed #0f0;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 20px 0;
+        }
+        
+        .room-code-display .label {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 10px;
+        }
+        
+        .room-code-display .code {
+            font-size: 48px;
+            font-weight: bold;
+            color: #0f0;
+            letter-spacing: 10px;
+            font-family: monospace;
+        }
+        
+        .copy-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .copy-btn:hover {
+            background: #00cc00;
+        }
+        
+        .waiting-text {
+            margin-top: 30px;
+            color: #ff0;
+            font-size: 18px;
+            animation: blink 1s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* 코드 입력 */
+        .code-inputs {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        
+        .code-inputs input {
+            width: 60px;
+            height: 80px;
+            font-size: 36px;
+            font-weight: bold;
+            text-align: center;
+            margin: 0;
+        }
+        
+        .start-btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 22px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .start-btn:hover {
+            background: #00cc00;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
+        }
+        
+        .start-btn:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        .error-msg {
+            color: #f00;
+            margin-top: 10px;
+            font-size: 14px;
+            min-height: 20px;
+        }
+        
+        /* 연결 상태 */
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .connection-status.connecting {
+            background: #ff0;
+            color: #000;
+        }
+        
+        .connection-status.connected {
+            background: #0f0;
+            color: #000;
+        }
+        
+        .connection-status.error {
+            background: #f00;
+            color: #fff;
+        }
+        
+        /* 캐릭터 설정 화면 */
+        .character-screen {
+            display: none;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #ff6600;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 900px;
+            margin: 0 auto;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .character-screen h2 {
+            color: #ff6600;
+            margin-bottom: 20px;
+            font-size: 32px;
+        }
+        
+        .character-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .character-preview {
+            background: rgba(255, 102, 0, 0.1);
+            border: 2px solid #ff6600;
+            border-radius: 10px;
+            height: 400px;
+            position: relative;
+            overflow: hidden;
+            display: block;
+        }
+        
+        #characterCanvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .preview-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+        }
+        
+        .preview-btn {
+            padding: 8px 16px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #ff6600;
+            color: #ff6600;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .preview-btn:hover {
+            background: #ff6600;
+            color: #000;
+        }
+        
+        .character-options {
+            text-align: left;
+        }
+        
+        .option-group {
+            margin-bottom: 25px;
+        }
+        
+        .option-group label {
+            display: block;
+            color: #ff6600;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        .team-selector {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .team-option {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .team-option:hover {
+            border-color: #666;
+        }
+        
+        .team-option.selected {
+            border-color: currentColor;
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .team-option.red {
+            color: #ff3333;
+        }
+        
+        .team-option.red.selected {
+            background: rgba(255, 51, 51, 0.2);
+            box-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
+        }
+        
+        .team-option.blue {
+            color: #3366ff;
+        }
+        
+        .team-option.blue.selected {
+            background: rgba(51, 102, 255, 0.2);
+            box-shadow: 0 0 20px rgba(51, 102, 255, 0.3);
+        }
+        
+        .team-option .icon {
+            font-size: 30px;
+            margin-bottom: 5px;
+        }
+        
+        .class-selector {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .class-option {
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        
+        .class-option:hover {
+            border-color: #ff6600;
+        }
+        
+        .class-option.selected {
+            border-color: #ff6600;
+            background: rgba(255, 102, 0, 0.2);
+            box-shadow: 0 0 15px rgba(255, 102, 0, 0.3);
+        }
+        
+        .class-option .icon {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        .class-option .name {
+            font-weight: bold;
+            color: #fff;
+            font-size: 14px;
+        }
+        
+        .class-option .desc {
+            font-size: 11px;
+            color: #888;
+            margin-top: 3px;
+        }
+        
+        .color-selector {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .color-option:hover {
+            transform: scale(1.1);
+        }
+        
+        .color-option.selected {
+            border-color: #fff;
+            box-shadow: 0 0 10px currentColor;
+            transform: scale(1.15);
+        }
+        
+        .character-stats {
+            background: rgba(255, 102, 0, 0.1);
+            border: 1px solid #ff6600;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .character-stats h3 {
+            color: #ff6600;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .stat-row .label {
+            color: #aaa;
+        }
+        
+        .stat-row .value {
+            color: #fff;
+            font-weight: bold;
+        }
+        
+        .stat-bar {
+            height: 6px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 5px;
+        }
+        
+        .stat-bar .fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        
+        .stat-bar .fill.health { background: #ff3333; }
+        .stat-bar .fill.speed { background: #33ff33; }
+        .stat-bar .fill.damage { background: #ffff33; }
+        
+        .save-character-btn {
+            width: 100%;
+            padding: 18px;
+            font-size: 20px;
+            background: #ff6600;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .save-character-btn:hover {
+            background: #ff8833;
+            box-shadow: 0 0 30px rgba(255, 102, 0, 0.5);
+        }
+        
+        /* 서버 안내 메시지 */
+        .server-guide {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #f00;
+            border-radius: 15px;
+            padding: 40px;
+            max-width: 500px;
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .server-guide.show {
+            display: block;
+        }
+        
+        .server-guide h3 {
+            color: #f00;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        
+        .server-guide code {
+            display: block;
+            background: #111;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-family: monospace;
+            color: #0f0;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status connecting" id="connectionStatus">연결 중...</div>
+    
+    <div class="container">
+        <!-- 메인 메뉴 -->
+        <div id="mainMenu">
+            <div class="logo">🔫</div>
+            <h1>FPS ARENA</h1>
+            <p class="subtitle">1:1 대전 슈팅 게임</p>
+            
+            <div class="menu-grid">
+                <div class="menu-card single" onclick="startSinglePlayer()">
+                    <div class="menu-icon">🤖</div>
+                    <div class="menu-title">싱글 플레이</div>
+                    <div class="menu-desc">AI 봇과 1:1 대전<br>연습 모드</div>
+                </div>
+                
+                <div class="menu-card multiplayer" onclick="showMultiplayerMenu()">
+                    <div class="menu-icon">🌐</div>
+                    <div class="menu-title">멀티 플레이</div>
+                    <div class="menu-desc">다른 플레이어와<br>실시간 대전</div>
+                </div>
+                
+                <div class="menu-card character" onclick="showCharacterScreen()">
+                    <div class="menu-icon">🎖️</div>
+                    <div class="menu-title">캐릭터 설정</div>
+                    <div class="menu-desc">팀, 클래스, 외형 커스터마이징</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 멀티플레이어 서브메뉴 -->
+        <div id="multiplayerMenu" class="submenu">
+            <h2>🌐 멀티플레이어</h2>
+            <div class="submenu-options">
+                <button class="submenu-btn" onclick="showCreateRoom()">🏠 방 만들기</button>
+                <button class="submenu-btn" onclick="showJoinRoom()">🔑 방 참여하기</button>
+            </div>
+            <button class="back-btn" onclick="showMainMenu()">← 돌아가기</button>
+        </div>
+        
+        <!-- 방 만들기 화면 -->
+        <div id="createRoomScreen" class="create-room-screen">
+            <h2>🏠 방 만들기</h2>
+            
+            <div id="createStep1">
+                <p style="margin-bottom: 20px; color: #aaa;">닉네임을 입력하세요</p>
+                <input type="text" id="createNickname" placeholder="닉네임 (최대 10자)" maxlength="10">
+                <button class="start-btn" onclick="createRoom()">방 생성</button>
+                <div class="error-msg" id="createError"></div>
+            </div>
+            
+            <div id="createStep2" style="display: none;">
+                <div class="room-code-display">
+                    <div class="label">방 코드</div>
+                    <div class="code" id="generatedCode">----</div>
+                    <button class="copy-btn" onclick="copyRoomCode()">📋 복사하기</button>
+                </div>
+                <p style="color: #aaa; margin: 20px 0;">이 코드를 상대방에게 공유하세요!</p>
+                <div class="waiting-text">⏳ 상대방 입장 대기 중...</div>
+                <button class="back-btn" onclick="cancelRoom()" style="margin-top: 30px;">취소</button>
+            </div>
+        </div>
+        
+        <!-- 방 참여하기 화면 -->
+        <div id="joinRoomScreen" class="join-room-screen">
+            <h2>🔑 방 참여하기</h2>
+            
+            <p style="margin-bottom: 20px; color: #aaa;">4자리 방 코드를 입력하세요</p>
+            
+            <div class="code-inputs">
+                <input type="text" maxlength="1" class="code-digit" data-index="0">
+                <input type="text" maxlength="1" class="code-digit" data-index="1">
+                <input type="text" maxlength="1" class="code-digit" data-index="2">
+                <input type="text" maxlength="1" class="code-digit" data-index="3">
+            </div>
+            
+            <p style="margin-bottom: 20px; color: #aaa;">닉네임을 입력하세요</p>
+            <input type="text" id="joinNickname" placeholder="닉네임 (최대 10자)" maxlength="10">
+            
+            <button class="start-btn" id="joinBtn" onclick="joinRoom()" disabled>입장하기</button>
+            <div class="error-msg" id="joinError"></div>
+            
+            <button class="back-btn" onclick="showMultiplayerMenu()">← 돌아가기</button>
+        </div>
+        
+        <!-- 캐릭터 설정 화면 -->
+        <div id="characterScreen" class="character-screen">
+            <h2>🎖️ 캐릭터 설정</h2>
+            
+            <div class="character-layout">
+                <!-- 3D 미리보기 -->
+                <div class="character-preview">
+                    <canvas id="characterCanvas"></canvas>
+                    <div class="preview-controls">
+                        <button class="preview-btn" onclick="rotatePreview('left')">←</button>
+                        <button class="preview-btn" onclick="togglePreviewAnimation()">⏯️</button>
+                        <button class="preview-btn" onclick="rotatePreview('right')">→</button>
+                    </div>
+                </div>
+                
+                <!-- 설정 옵션 -->
+                <div class="character-options">
+                    <!-- 팀 선택 -->
+                    <div class="option-group">
+                        <label>소속 팀</label>
+                        <div class="team-selector">
+                            <div class="team-option red" onclick="selectTeam('red')">
+                                <div class="icon">🔴</div>
+                                <div>레드팀</div>
+                            </div>
+                            <div class="team-option blue" onclick="selectTeam('blue')">
+                                <div class="icon">🔵</div>
+                                <div>블루팀</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 클래스 선택 -->
+                    <div class="option-group">
+                        <label>클릭 클래스</label>
+                        <div class="class-selector">
+                            <div class="class-option selected" data-class="assault" onclick="selectClass('assault')">
+                                <div class="icon">🔫</div>
+                                <div class="name">돌격병</div>
+                                <div class="desc">밸런스형</div>
+                            </div>
+                            <div class="class-option" data-class="sniper" onclick="selectClass('sniper')">
+                                <div class="icon">🎯</div>
+                                <div class="name">저격수</div>
+                                <div class="desc">원거리</div>
+                            </div>
+                            <div class="class-option" data-class="medic" onclick="selectClass('medic')">
+                                <div class="icon">💉</div>
+                                <div class="name">의묘병</div>
+                                <div class="desc">지원형</div>
+                            </div>
+                            <div class="class-option" data-class="heavy" onclick="selectClass('heavy')">
+                                <div class="icon">🛡️</div>
+                                <div class="name">중화기병</div>
+                                <div class="desc">방어형</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 스탯 표시 -->
+                    <div class="character-stats">
+                        <h3>클릭 스탯</h3>
+                        <div class="stat-row">
+                            <span class="label">첫채력</span>
+                            <span class="value" id="statHealth">100</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="fill health" id="barHealth" style="width: 100%"></div>
+                        </div>
+                        
+                        <div class="stat-row" style="margin-top: 15px;">
+                            <span class="label">이동 속도</span>
+                            <span class="value" id="statSpeed">중간</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="fill speed" id="barSpeed" style="width: 70%"></div>
+                        </div>
+                        
+                        <div class="stat-row" style="margin-top: 15px;">
+                            <span class="label">무기 데미지</span>
+                            <span class="value" id="statDamage">중간</span>
+                        </div>
+                        <div class="stat-bar">
+                            <div class="fill damage" id="barDamage" style="width: 70%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="save-character-btn" onclick="saveCharacter()">💾 설정 저장</button>
+            <button class="back-btn" onclick="showMainMenu()" style="margin-top: 15px; width: 100%;">← 돌아가기</button>
+        </div>
+    </div>
+    
+    <!-- 서버 실행 안내 -->
+    <div class="server-guide" id="serverGuide">
+        <h3>⚠️ 서버 연결 실패</h3>
+        <p>게임 서버가 실행 중이지 않습니다.</p>
+        <p style="margin-top: 15px; color: #aaa;">터미널에서 다음 명령어를 실행하세요:</p>
+        <code>npm run server</code>
+        <p style="margin-top: 15px; color: #888; font-size: 14px;">
+            서버 실행 후 페이지를 새로고침하세요.
+        </p>
+    </div>
+
+    <script>
+        // WebSocket 연결
+        const WS_URL = `ws://${window.location.host}`;
+        let ws = null;
+        let myId = null;
+        let roomId = null;
+        
+        // 페이지 로드시 자동 연결
+        window.onload = () => {
+            connectToServer();
+            setupCodeInputs();
+        };
+        
+        function connectToServer() {
+            const statusEl = document.getElementById('connectionStatus');
+            
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => {
+                statusEl.textContent = '✓ 연결됨';
+                statusEl.className = 'connection-status connected';
+            };
+            
+            ws.onclose = () => {
+                statusEl.textContent = '✗ 연결 끊김';
+                statusEl.className = 'connection-status error';
+                document.getElementById('serverGuide').classList.add('show');
+            };
+            
+            ws.onerror = () => {
+                statusEl.textContent = '✗ 오류';
+                statusEl.className = 'connection-status error';
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+        
+        function handleMessage(data) {
+            switch (data.type) {
+                case 'roomCreated':
+                    myId = data.playerId;
+                    roomId = data.roomId;
+                    document.getElementById('generatedCode').textContent = roomId;
+                    document.getElementById('createStep1').style.display = 'none';
+                    document.getElementById('createStep2').style.display = 'block';
+                    break;
+                    
+                case 'roomJoined':
+                    myId = data.playerId;
+                    roomId = data.roomId;
+                    // 게임 페이지로 이동 (멀티플레이어 모드)
+                    localStorage.setItem('fpsArenaMode', 'multiplayer');
+                    localStorage.setItem('fpsArenaRoomId', roomId);
+                    localStorage.setItem('fpsArenaPlayerId', myId);
+                    localStorage.setItem('fpsArenaNickname', document.getElementById('joinNickname').value.trim());
+                    window.location.href = 'multiplayer.html';
+                    break;
+                    
+                case 'gameStart':
+                    // 방장도 게임 시작
+                    localStorage.setItem('fpsArenaMode', 'multiplayer');
+                    localStorage.setItem('fpsArenaRoomId', roomId);
+                    localStorage.setItem('fpsArenaPlayerId', myId);
+                    localStorage.setItem('fpsArenaNickname', document.getElementById('createNickname').value.trim());
+                    window.location.href = 'multiplayer.html';
+                    break;
+                    
+                case 'error':
+                    document.getElementById('joinError').textContent = data.message;
+                    document.getElementById('joinBtn').disabled = false;
+                    document.getElementById('joinBtn').textContent = '입장하기';
+                    break;
+            }
+        }
+        
+        function send(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+            }
+        }
+        
+        // 메뉴 네비게이션
+        function showMainMenu() {
+            hideAllScreens();
+            document.getElementById('mainMenu').style.display = 'block';
+        }
+        
+        function showMultiplayerMenu() {
+            hideAllScreens();
+            document.getElementById('multiplayerMenu').style.display = 'block';
+        }
+        
+        function showCreateRoom() {
+            hideAllScreens();
+            document.getElementById('createRoomScreen').style.display = 'block';
+            // 초기화
+            document.getElementById('createStep1').style.display = 'block';
+            document.getElementById('createStep2').style.display = 'none';
+            document.getElementById('createNickname').value = '';
+            document.getElementById('createError').textContent = '';
+        }
+        
+        function showJoinRoom() {
+            hideAllScreens();
+            document.getElementById('joinRoomScreen').style.display = 'block';
+            // 초기화
+            document.querySelectorAll('.code-digit').forEach(input => input.value = '');
+            document.getElementById('joinNickname').value = '';
+            document.getElementById('joinError').textContent = '';
+            document.getElementById('joinBtn').disabled = true;
+            document.querySelector('.code-digit[data-index="0"]').focus();
+        }
+        
+        function hideAllScreens() {
+            document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('multiplayerMenu').style.display = 'none';
+            document.getElementById('createRoomScreen').style.display = 'none';
+            document.getElementById('joinRoomScreen').style.display = 'none';
+            document.getElementById('characterScreen').style.display = 'none';
+        }
+        
+        // ============================================
+        // 캐릭터 설정
+        // ============================================
+        
+        let characterConfig = {
+            team: 'red',
+            class: 'assault',
+            color: '#ff3333'
+        };
+        
+        let previewScene, previewCamera, previewRenderer, previewCharacter, previewMixer;
+        let isAnimating = true;
+        let previewRotation = 0;
+        
+        const CLASS_STATS = {
+            assault: { health: 100, speed: 70, damage: 70, speedText: '중간', damageText: '중간' },
+            sniper: { health: 80, speed: 50, damage: 100, speedText: '느림', damageText: '매우 높음' },
+            medic: { health: 120, speed: 60, damage: 50, speedText: '보통', damageText: '낮음' },
+            heavy: { health: 150, speed: 40, damage: 80, speedText: '매우 느림', damageText: '높음' }
+        };
+        
+        // 저장된 설정 불러오기
+        function loadCharacterConfig() {
+            const saved = localStorage.getItem('fpsArenaCharacter');
+            if (saved) {
+                characterConfig = JSON.parse(saved);
+            }
+        }
+        
+        function showCharacterScreen() {
+            hideAllScreens();
+            document.getElementById('characterScreen').style.display = 'block';
+            
+            // 설정 복원
+            loadCharacterConfig();
+            selectTeam(characterConfig.team);
+            selectClass(characterConfig.class);
+            
+            // 3D 미리보기 초기화 (display가 block으로 설정된 후)
+            // Three.js가 로드되었는지 확인하고 초기화
+            setTimeout(() => {
+                if (typeof THREE !== 'undefined') {
+                    initCharacterPreview();
+                } else {
+                    console.log('Waiting for Three.js...');
+                    // Three.js 로드를 기다림
+                    const checkThree = setInterval(() => {
+                        if (typeof THREE !== 'undefined') {
+                            clearInterval(checkThree);
+                            initCharacterPreview();
+                        }
+                    }, 200);
+                    // 10초 후 타임아웃
+                    setTimeout(() => clearInterval(checkThree), 10000);
+                }
+            }, 300);
+        }
+        
+        let previewInitialized = false;
+        
+        function selectTeam(team) {
+            characterConfig.team = team;
+            
+            document.querySelectorAll('.team-option').forEach(el => {
+                el.classList.remove('selected');
+            });
+            document.querySelector(`.team-option.${team}`).classList.add('selected');
+            
+            characterConfig.color = team === 'red' ? '#ff3333' : '#3366ff';
+            
+            // 미리보기가 초기화되었을 때만 업데이트
+            if (previewInitialized) {
+                updatePreviewCharacter();
+            }
+        }
+        
+        function selectClass(className) {
+            characterConfig.class = className;
+            
+            document.querySelectorAll('.class-option').forEach(el => {
+                el.classList.remove('selected');
+            });
+            document.querySelector(`.class-option[data-class="${className}"]`).classList.add('selected');
+            
+            // 스탯 업데이트
+            const stats = CLASS_STATS[className];
+            document.getElementById('statHealth').textContent = stats.health;
+            document.getElementById('barHealth').style.width = stats.health + '%';
+            document.getElementById('statSpeed').textContent = stats.speedText;
+            document.getElementById('barSpeed').style.width = stats.speed + '%';
+            document.getElementById('statDamage').textContent = stats.damageText;
+            document.getElementById('barDamage').style.width = stats.damage + '%';
+            
+            // 미리보기가 초기화되었을 때만 업데이트
+            if (previewInitialized) {
+                updatePreviewCharacter();
+            }
+        }
+        
+        function saveCharacter() {
+            localStorage.setItem('fpsArenaCharacter', JSON.stringify(characterConfig));
+            
+            const btn = document.querySelector('.save-character-btn');
+            const originalText = btn.textContent;
+            btn.textContent = '✓ 저장 완료!';
+            btn.style.background = '#0f0';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '#ff6600';
+                showMainMenu();
+            }, 1500);
+        }
+        
+        // ============================================
+        // 3D 캐릭터 미리보기
+        // ============================================
+        
+        function initCharacterPreview() {
+            console.log('initCharacterPreview called');
+            
+            // Three.js 로드 확인
+            if (typeof THREE === 'undefined') {
+                console.log('Three.js not loaded yet, retrying...');
+                setTimeout(initCharacterPreview, 500);
+                return;
+            }
+            
+            const canvas = document.getElementById('characterCanvas');
+            if (!canvas) {
+                console.error('Canvas not found');
+                return;
+            }
+            console.log('Canvas found:', canvas);
+            
+            // 기존 렌더러 제거
+            if (previewRenderer) {
+                previewRenderer.dispose();
+                cancelAnimationFrame(previewAnimationId);
+            }
+            
+            const width = canvas.parentElement.clientWidth;
+            const height = canvas.parentElement.clientHeight;
+            
+            console.log('Canvas size:', width, height);
+            
+            if (width === 0 || height === 0) {
+                console.log('Canvas size is 0, retrying...');
+                setTimeout(initCharacterPreview, 300);
+                return;
+            }
+            
+            // 씬 설정
+            previewScene = new THREE.Scene();
+            previewScene.background = new THREE.Color(0x111111);
+            
+            // 칩처 설정
+            previewCamera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+            previewCamera.position.set(0, 1.5, 4);
+            previewCamera.lookAt(0, 1, 0);
+            
+            // 렌더러 설정
+            try {
+                previewRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+                previewRenderer.setSize(width, height);
+                previewRenderer.shadowMap.enabled = true;
+                console.log('Renderer created successfully');
+            } catch (e) {
+                console.error('Failed to create renderer:', e);
+                return;
+            }
+            
+            // 조명
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            previewScene.add(ambientLight);
+            
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(2, 5, 2);
+            dirLight.castShadow = true;
+            previewScene.add(dirLight);
+            
+            // 바닥
+            const floorGeo = new THREE.CircleGeometry(3, 32);
+            const floorMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            previewScene.add(floor);
+            
+            // 캐릭터 생성
+            createPreviewCharacter();
+            
+            // 애니메이션 루프
+            animatePreview();
+        }
+        
+        let previewAnimationId;
+        
+        function createPreviewCharacter() {
+            // previewScene이 초기화되지 않았으면 무시
+            if (!previewScene) {
+                console.log('previewScene not ready yet');
+                return;
+            }
+            
+            if (previewCharacter) {
+                previewScene.remove(previewCharacter);
+            }
+            
+            const group = new THREE.Group();
+            const teamColor = new THREE.Color(characterConfig.color);
+            const secondaryColor = new THREE.Color(0x333333);
+            const skinColor = new THREE.Color(0xffccaa);
+            
+            // 몸통
+            const torsoGeo = new THREE.BoxGeometry(0.5, 0.6, 0.3);
+            const torsoMat = new THREE.MeshLambertMaterial({ color: teamColor });
+            const torso = new THREE.Mesh(torsoGeo, torsoMat);
+            torso.position.y = 1.3;
+            torso.castShadow = true;
+            group.add(torso);
+            
+            // 방탄복
+            const vestGeo = new THREE.BoxGeometry(0.52, 0.4, 0.32);
+            const vestMat = new THREE.MeshLambertMaterial({ color: secondaryColor });
+            const vest = new THREE.Mesh(vestGeo, vestMat);
+            vest.position.set(0, 1.35, 0.02);
+            group.add(vest);
+            
+            // 머리
+            const headGeo = new THREE.BoxGeometry(0.25, 0.3, 0.28);
+            const headMat = new THREE.MeshLambertMaterial({ color: skinColor });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 1.75;
+            group.add(head);
+            
+            // 헬멧
+            const helmetGeo = new THREE.BoxGeometry(0.3, 0.15, 0.32);
+            const helmetMat = new THREE.MeshLambertMaterial({ color: secondaryColor });
+            const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+            helmet.position.y = 1.93;
+            group.add(helmet);
+            
+            // 고글
+            const goggleGeo = new THREE.BoxGeometry(0.22, 0.08, 0.05);
+            const goggleMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+            const goggles = new THREE.Mesh(goggleGeo, goggleMat);
+            goggles.position.set(0, 1.77, 0.15);
+            group.add(goggles);
+            
+            // 팔
+            const armGeo = new THREE.BoxGeometry(0.15, 0.7, 0.15);
+            const armMat = new THREE.MeshLambertMaterial({ color: teamColor });
+            
+            const leftArm = new THREE.Mesh(armGeo, armMat);
+            leftArm.position.set(-0.35, 1.2, 0);
+            leftArm.castShadow = true;
+            group.add(leftArm);
+            
+            const rightArm = new THREE.Mesh(armGeo, armMat);
+            rightArm.position.set(0.35, 1.2, 0);
+            rightArm.castShadow = true;
+            group.add(rightArm);
+            
+            // 다리
+            const legGeo = new THREE.BoxGeometry(0.2, 0.9, 0.22);
+            const legMat = new THREE.MeshLambertMaterial({ color: 0x224422 });
+            
+            const leftLeg = new THREE.Mesh(legGeo, legMat);
+            leftLeg.position.set(-0.15, 0.45, 0);
+            leftLeg.castShadow = true;
+            group.add(leftLeg);
+            
+            const rightLeg = new THREE.Mesh(legGeo, legMat);
+            rightLeg.position.set(0.15, 0.45, 0);
+            rightLeg.castShadow = true;
+            group.add(rightLeg);
+            
+            // 무기 (클릭별 다른 무기)
+            const weaponGroup = new THREE.Group();
+            weaponGroup.position.set(0.35, 1.2, 0.3);
+            
+            let gunColor, gunLength, gunThickness;
+            
+            switch(characterConfig.class) {
+                case 'sniper':
+                    gunColor = 0x1a1a1a;
+                    gunLength = 0.8;
+                    gunThickness = 0.06;
+                    break;
+                case 'medic':
+                    gunColor = 0xffffff;
+                    gunLength = 0.4;
+                    gunThickness = 0.08;
+                    break;
+                case 'heavy':
+                    gunColor = 0x444444;
+                    gunLength = 0.6;
+                    gunThickness = 0.12;
+                    break;
+                default: // assault
+                    gunColor = 0x222222;
+                    gunLength = 0.5;
+                    gunThickness = 0.08;
+            }
+            
+            const gunBodyGeo = new THREE.BoxGeometry(gunThickness, gunThickness, gunLength);
+            const gunMat = new THREE.MeshLambertMaterial({ color: gunColor });
+            const gunBody = new THREE.Mesh(gunBodyGeo, gunMat);
+            weaponGroup.add(gunBody);
+            
+            // 총열
+            const barrelGeo = new THREE.CylinderGeometry(gunThickness/3, gunThickness/3, gunLength/3, 8);
+            const barrel = new THREE.Mesh(barrelGeo, gunMat);
+            barrel.rotation.x = Math.PI / 2;
+            barrel.position.z = gunLength/2;
+            weaponGroup.add(barrel);
+            
+            group.add(weaponGroup);
+            
+            previewCharacter = group;
+            previewScene.add(group);
+            
+            previewInitialized = true;
+            console.log('Character preview initialized');
+        }
+        
+        function updatePreviewCharacter() {
+            // 미리보기가 초기화되었을 때만 업데이트
+            if (previewScene) {
+                createPreviewCharacter();
+            }
+        }
+        
+        function animatePreview() {
+            if (!isAnimating || !previewRenderer || !previewScene || !previewCamera) {
+                console.log('Animation skipped - missing components');
+                return;
+            }
+            
+            previewAnimationId = requestAnimationFrame(animatePreview);
+            
+            if (previewCharacter) {
+                // 천천히 회전
+                previewRotation += 0.005;
+                previewCharacter.rotation.y = previewRotation;
+                
+                // 호흡 애니메이션
+                previewCharacter.position.y = Math.sin(Date.now() * 0.002) * 0.02;
+            }
+            
+            previewRenderer.render(previewScene, previewCamera);
+        }
+        
+        // 창 크기 변경 시 리사이즈
+        window.addEventListener('resize', () => {
+            if (previewRenderer && previewCamera) {
+                const canvas = document.getElementById('characterCanvas');
+                if (canvas && canvas.parentElement) {
+                    const width = canvas.parentElement.clientWidth;
+                    const height = canvas.parentElement.clientHeight;
+                    previewCamera.aspect = width / height;
+                    previewCamera.updateProjectionMatrix();
+                    previewRenderer.setSize(width, height);
+                }
+            }
+        });
+        
+        function togglePreviewAnimation() {
+            isAnimating = !isAnimating;
+            if (isAnimating) {
+                animatePreview();
+            } else {
+                cancelAnimationFrame(previewAnimationId);
+            }
+        }
+        
+        function rotatePreview(direction) {
+            if (!previewCharacter) return;
+            
+            const rotationSpeed = 0.5;
+            if (direction === 'left') {
+                previewRotation -= rotationSpeed;
+            } else {
+                previewRotation += rotationSpeed;
+            }
+            previewCharacter.rotation.y = previewRotation;
+            
+            // 렌더링 한 프레임
+            if (!isAnimating && previewRenderer) {
+                previewRenderer.render(previewScene, previewCamera);
+            }
+        }
+        
+        // Three.js 로드
+        const threeScript = document.createElement('script');
+        threeScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+        threeScript.onload = () => {
+            console.log('Three.js loaded');
+            loadCharacterConfig();
+            // 캐릭터 화면이 열려있으면 미리보기 초기화
+            if (document.getElementById('characterScreen').style.display === 'block') {
+                setTimeout(initCharacterPreview, 100);
+            }
+        };
+        threeScript.onerror = () => {
+            console.error('Failed to load Three.js');
+        };
+        document.head.appendChild(threeScript);
+        
+        // 싱글 플레이어
+        function startSinglePlayer() {
+            localStorage.setItem('fpsArenaMode', 'single');
+            window.location.href = 'single.html';
+        }
+        
+        // 방 만들기
+        function createRoom() {
+            const nickname = document.getElementById('createNickname').value.trim();
+            
+            if (!nickname) {
+                document.getElementById('createError').textContent = '닉네임을 입력하세요';
+                return;
+            }
+            
+            if (nickname.length < 2) {
+                document.getElementById('createError').textContent = '닉네임은 2자 이상 입력하세요';
+                return;
+            }
+            
+            // 캐릭터 설정 불러오기
+            loadCharacterConfig();
+            
+            send({
+                type: 'createRoom',
+                playerName: nickname,
+                team: characterConfig.team
+            });
+        }
+        
+        function cancelRoom() {
+            ws.close();
+            setTimeout(() => {
+                connectToServer();
+                showMultiplayerMenu();
+            }, 500);
+        }
+        
+        function copyRoomCode() {
+            const code = document.getElementById('generatedCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ 복사됨';
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        }
+        
+        // 방 참여하기
+        function setupCodeInputs() {
+            const inputs = document.querySelectorAll('.code-digit');
+            
+            inputs.forEach((input, index) => {
+                input.addEventListener('input', (e) => {
+                    const value = e.target.value;
+                    
+                    // 숫자만 입력
+                    if (!/^\d*$/.test(value)) {
+                        e.target.value = value.replace(/\D/g, '');
+                        return;
+                    }
+                    
+                    // 다음 입력으로 포커스 이동
+                    if (value && index < 3) {
+                        inputs[index + 1].focus();
+                    }
+                    
+                    checkJoinButton();
+                });
+                
+                input.addEventListener('keydown', (e) => {
+                    // 백스페이스로 이전 입력으로 이동
+                    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                        inputs[index - 1].focus();
+                    }
+                });
+                
+                input.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const paste = e.clipboardData.getData('text').replace(/\D/g, '').substring(0, 4);
+                    
+                    for (let i = 0; i < paste.length && i < 4; i++) {
+                        inputs[i].value = paste[i];
+                    }
+                    
+                    if (paste.length < 4 && paste.length > 0) {
+                        inputs[paste.length].focus();
+                    }
+                    
+                    checkJoinButton();
+                });
+            });
+        }
+        
+        function checkJoinButton() {
+            const inputs = document.querySelectorAll('.code-digit');
+            const code = Array.from(inputs).map(input => input.value).join('');
+            const nickname = document.getElementById('joinNickname').value.trim();
+            
+            const joinBtn = document.getElementById('joinBtn');
+            joinBtn.disabled = code.length !== 4 || nickname.length < 2;
+        }
+        
+        document.getElementById('joinNickname').addEventListener('input', checkJoinButton);
+        
+        function joinRoom() {
+            const inputs = document.querySelectorAll('.code-digit');
+            const code = Array.from(inputs).map(input => input.value).join('');
+            const nickname = document.getElementById('joinNickname').value.trim();
+            
+            if (code.length !== 4) {
+                document.getElementById('joinError').textContent = '4자리 코드를 입력하세요';
+                return;
+            }
+            
+            if (nickname.length < 2) {
+                document.getElementById('joinError').textContent = '닉네임은 2자 이상 입력하세요';
+                return;
+            }
+            
+            document.getElementById('joinBtn').disabled = true;
+            document.getElementById('joinBtn').textContent = '입장 중...';
+            
+            // 캐릭터 설정 불러오기
+            loadCharacterConfig();
+            
+            send({
+                type: 'joinRoom',
+                roomId: code,
+                playerName: nickname,
+                team: characterConfig.team
+            });
+        }
+    </script>
+</body>
+</html>

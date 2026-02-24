@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS Arena - 멀티플레이어</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; }
+        #gameContainer canvas { display: block; width: 100%; height: 100%; }
+        
+        /* 크로스헤어 */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; pointer-events: none; z-index: 100; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(0, 255, 0, 0.8); }
+        #crosshair::before { width: 2px; height: 20px; left: 50%; transform: translateX(-50%); }
+        #crosshair::after { width: 20px; height: 2px; top: 50%; transform: translateY(-50%); }
+        #crosshair::before, #crosshair::after { box-shadow: 0 0 10px rgba(0, 255, 0, 0.5); }
+        
+        /* 히트마커 */
+        #hitmarker { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; pointer-events: none; z-index: 101; display: none; }
+        #hitmarker.show { display: block; animation: hitmarkerAnim 0.15s ease-out; }
+        #hitmarker::before, #hitmarker::after { content: ''; position: absolute; width: 100%; height: 4px; background: #ff0000; top: 50%; left: 0; }
+        #hitmarker::before { transform: translateY(-50%) rotate(45deg); }
+        #hitmarker::after { transform: translateY(-50%) rotate(-45deg); }
+        @keyframes hitmarkerAnim { 0% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+        
+        /* UI */
+        #ui { position: absolute; top: 20px; left: 20px; color: #fff; z-index: 100; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+        #ui h2 { font-size: 24px; margin-bottom: 10px; color: #0f0; }
+        .stat { font-size: 18px; margin: 5px 0; }
+        .hp-bar { width: 200px; height: 20px; background: #333; border: 2px solid #555; margin-top: 10px; position: relative; }
+        .hp-fill { height: 100%; background: linear-gradient(90deg, #f00, #ff0, #0f0); transition: width 0.2s; }
+        .hp-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; color: #fff; }
+        
+        /* 상태바 */
+        #statusBar { position: absolute; top: 20px; right: 20px; padding: 10px 20px; border-radius: 5px; font-size: 14px; font-weight: bold; z-index: 100; background: #ff0; color: #000; }
+        #statusBar.connected { background: #0f0; }
+        #statusBar.error { background: #f00; color: #fff; }
+        
+        /* 화면들 */
+        #startScreen, #lobbyScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 200; color: #fff; }
+        #lobbyScreen { display: none; }
+        h1 { font-size: 64px; margin-bottom: 20px; text-shadow: 0 0 20px #0f0; color: #0f0; }
+        .btn { padding: 15px 40px; font-size: 24px; background: transparent; border: 3px solid #0f0; color: #0f0; cursor: pointer; transition: all 0.3s; margin: 10px; }
+        .btn:hover { background: #0f0; color: #000; box-shadow: 0 0 30px #0f0; }
+        input { padding: 15px; font-size: 18px; background: #111; border: 2px solid #333; color: #fff; border-radius: 8px; margin: 10px; width: 300px; text-align: center; }
+        input:focus { outline: none; border-color: #0f0; }
+        
+        /* 킬 피드 */
+        #killFeed { position: absolute; top: 20px; right: 20px; z-index: 100; text-align: right; }
+        .kill-message { color: #ff0; font-size: 16px; margin: 5px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); animation: fadeOut 3s forwards; }
+        @keyframes fadeOut { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+        
+        /* 무기 */
+        #weapon { position: absolute; bottom: 50px; right: 100px; width: 200px; height: 100px; z-index: 50; }
+        .gun { width: 100%; height: 100%; background: linear-gradient(135deg, #444, #222); border-radius: 10px; position: relative; transform-origin: bottom center; transition: transform 0.1s; }
+        .gun.recoil { transform: rotateX(-15deg) translateY(-10px); }
+        .gun-barrel { position: absolute; top: 20px; left: -30px; width: 80px; height: 20px; background: #111; border-radius: 5px; }
+        .muzzle-flash { position: absolute; top: 10px; left: -50px; width: 30px; height: 40px; background: radial-gradient(ellipse, #ff0, #f80, transparent); opacity: 0; transition: opacity 0.05s; }
+        .muzzle-flash.active { opacity: 1; }
+        
+        /* 리스폰 화면 */
+        #respawnScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 300; color: #fff; }
+        #respawnScreen.show { display: flex; }
+        #respawnCount { font-size: 80px; font-weight: bold; color: #ff6600; margin-bottom: 20px; }
+        #respawnText { font-size: 24px; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="crosshair"></div>
+        <div id="hitmarker"></div>
+        
+        <div id="statusBar">연결 중...</div>
+        
+        <div id="respawnScreen">
+            <div id="respawnCount">3</div>
+            <div id="respawnText">초 후 부활...</div>
+        </div>
+        
+        <div id="ui" style="display: none;">
+            <h2>🎮 FPS ARENA</h2>
+            <div class="stat">방: <span id="roomId">-</span></div>
+            <div class="stat">킬: <span id="kills">0</span> / 데스: <span id="deaths">0</span></div>
+            <div class="stat">점수: <span id="score">0</span></div>
+            <div class="hp-bar">
+                <div class="hp-fill" id="hpFill" style="width: 100%"></div>
+                <div class="hp-text" id="hpText">100/100</div>
+            </div>
+            <div class="stat" style="margin-top: 10px;">탄약: <span id="ammo">30</span>/30</div>
+        </div>
+        
+        <div id="killFeed"></div>
+        
+        <div id="weapon" style="display: none;">
+            <div class="gun" id="gun">
+                <div class="gun-barrel"></div>
+                <div class="muzzle-flash" id="muzzleFlash"></div>
+            </div>
+        </div>
+        
+        <!-- 로딩 화면 -->
+        <div id="loadingScreen" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200; color: #fff;">
+            <h1 style="font-size: 48px; margin-bottom: 20px; color: #0f0;">🔫 FPS ARENA</h1>
+            <p style="font-size: 20px; color: #888; margin-bottom: 30px;">게임 연결 중...</p>
+            <div style="width: 200px; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                <div style="width: 50%; height: 100%; background: #0f0; animation: loading 1s infinite;"></div>
+            </div>
+            <style>@keyframes loading { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }</style>
+        </div>
+        
+        <!-- 로비 화면 -->
+        <div id="lobbyScreen">
+            <h2>🎮 게임 로비</h2>
+            <p>방 코드: <span id="displayRoomId" style="font-size: 36px; color: #0f0;">-</span></p>
+            <p id="lobbyStatus" style="margin: 20px; color: #888;">상대방을 기다리는 중...</p>
+            <button id="startGameBtn" class="btn" onclick="startGameFromLobby()" style="display: none;">게임 시작</button>
+            <button class="btn" onclick="cancelRoom()" style="border-color: #f00; color: #f00;">취소</button>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- 게임 모듈 -->
+    <script src="js/core.js"></script>
+    <script src="js/walls.js"></script>
+    <script src="js/healthpack.js"></script>
+
+    <script>
+        // ============================================
+        // 멀티플레이어 로직
+        // ============================================
+        
+        const WS_URL = `ws://${window.location.host}`;
+        let ws = null;
+        let myId = null;
+        let myName = '';
+        let roomId = null;
+        
+        let isPointerLocked = false;
+        const keys = {};
+        let mouseX = 0, mouseY = 0;
+        let playerVelocity = new THREE.Vector3();
+        let playerOnGround = false;
+        
+        let remotePlayers = new Map();
+        let localCamera = null;  // 전역 치터 참조
+        let gameInitialized = false;  // 게임 초기화 중복 방지
+        
+        // 무기 설정
+        const WEAPONS = {
+            1: { name: 'rifle', damage: 20, fireRate: 100, ammo: 30, zoom: 1 },
+            2: { name: 'sniper', damage: 80, fireRate: 1500, ammo: 5, zoom: 0.3 },
+            3: { name: 'knife', damage: 50, fireRate: 500, ammo: Infinity, melee: true }
+        };
+        let currentWeapon = 1;
+        let isZoomed = false;
+        let originalFOV = 75;
+        
+        // 무기별 탄약 수 저장
+        let weaponAmmo = {
+            1: WEAPONS[1].ammo,  // 소총: 30
+            2: WEAPONS[2].ammo,  // 저격총: 5
+            3: WEAPONS[3].ammo   // 칼: Infinity
+        };
+        
+        // 입력 이벤트
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            
+            // 디버깅: WASD 키 입력 로그
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(e.code)) {
+
+            }
+            
+            if (!window.FPSCore.gameState().isPlaying) return;
+            
+            if (e.code === 'KeyR') {
+                send({ type: 'reload' });
+            }
+            if (e.code === 'Digit1') switchWeapon(1);
+            if (e.code === 'Digit2') switchWeapon(2);
+            if (e.code === 'Digit3') switchWeapon(3);
+        });
+        
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+        
+        document.addEventListener('mousedown', (e) => {
+            if (!window.FPSCore.gameState().isPlaying) return;
+            // Pointer Lock 없어도 발사는 가능 (스코프 조준만 Pointer Lock 필요)
+            
+            if (e.button === 0) {
+                shoot();
+            } else if (e.button === 2) {
+                if (currentWeapon === 2) toggleZoom(true);
+            }
+        });
+        
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 2) toggleZoom(false);
+        });
+        
+        // 화면 클릭 시 Pointer Lock 요청
+
+        
+        document.addEventListener('click', (e) => {
+            if (window.FPSCore && window.FPSCore.gameState().isPlaying && !isPointerLocked) {
+                    window.FPSCore.renderer().domElement.requestPointerLock();
+            }
+        });
+        
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isPointerLocked && window.FPSCore.gameState().isPlaying) {
+                const CONFIG = window.FPSCore.CONFIG;
+                const sensitivity = isZoomed ? CONFIG.mouseSensitivity * 0.5 : CONFIG.mouseSensitivity;
+
+                mouseX -= e.movementX * sensitivity;
+                mouseY -= e.movementY * sensitivity;
+                mouseY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, mouseY));
+            }
+        });
+        
+        // WebSocket 연결
+        function connect() {
+            ws = new WebSocket(WS_URL);
+            const statusBar = document.getElementById('statusBar');
+            
+            ws.onopen = () => {
+                statusBar.textContent = '✓ 서버 연결됨';
+                statusBar.className = 'connected';
+            };
+            
+            ws.onclose = () => {
+                statusBar.textContent = '✗ 연결 끊김';
+                statusBar.className = 'error';
+            };
+            
+            ws.onerror = () => {
+                statusBar.textContent = '✗ 오류';
+                statusBar.className = 'error';
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleMessage(data);
+            };
+        }
+        
+        // 메시지 처리 - 하나의 함수로 통합
+        function handleMessage(data) {
+            switch (data.type) {
+                case 'roomCreated':
+                    myId = data.playerId;
+                    roomId = data.roomId;
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('lobbyScreen').style.display = 'flex';
+                    document.getElementById('displayRoomId').textContent = roomId;
+                    break;
+                    
+                case 'roomJoined':
+                    myId = data.playerId;
+                    roomId = data.roomId;
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    startGame([]);
+                    break;
+                    
+                case 'gameStart':
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('lobbyScreen').style.display = 'none';
+                    startGame(data.players);
+                    // 참여자는 여기서 포인터 락 요청 (방장은 시작 버튼에서 요청)
+                    if (savedRoomId && savedRoomId !== 'null') {
+                        // Pointer Lock 이벤트 리스너가 등록될 시간을 주고 요청
+                        setTimeout(() => {
+                            const renderer = window.FPSCore.renderer();
+                            if (renderer && renderer.domElement) {
+                                renderer.domElement.requestPointerLock();
+                            }
+                        }, 500);
+                    }
+                    break;
+                    
+                case 'playerJoined':
+                    if (data.player.id !== myId) {
+                        createRemotePlayer(data.player);
+                        // 방장인 경우 게임 시작 버튼 활성화
+                        if (!savedRoomId || savedRoomId === 'null') {
+                            document.getElementById('lobbyStatus').textContent = "상대방이 입장했습니다!";
+                            document.getElementById('startGameBtn').style.display = 'block';
+                        }
+                    }
+                    break;
+                    
+                case 'playerLeft':
+                    removeRemotePlayer(data.playerId);
+                    break;
+                    
+                case 'playerUpdate':
+                    updateRemotePlayer(data);
+                    break;
+                    
+                case 'playerShoot':
+                    handleRemoteShoot(data);
+                    break;
+                    
+                case 'takeDamage':
+                    takeDamage(data.damage);
+                    break;
+                    
+                case 'playerKilled':
+                    handleKill(data.killerId, data.victimId);
+                    break;
+                    
+                case 'playerRespawn':
+                    handleRemoteRespawn(data);
+                    break;
+                    
+                case 'respawn':
+                    respawnLocal(data.position);
+                    break;
+                    
+                case 'error':
+                    alert('오류: ' + data.message);
+                    window.location.href = 'index.html';
+                    break;
+            }
+        }
+        
+        function send(data) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(data));
+            }
+        }
+        
+        // 취소
+        function startGameFromLobby() {
+            // 포인터 락 요청 후 게임 시작
+            const renderer = window.FPSCore.renderer();
+            renderer.domElement.requestPointerLock();
+            
+            // 서버에 게임 시작 알림
+            send({ type: "startGame" });
+        }
+        
+        function cancelRoom() {
+            ws.close();
+            window.location.href = 'index.html';
+        }
+        
+        // 게임 시작
+        function startGame(players) {
+            if (gameInitialized) {
+
+                return;
+            }
+            gameInitialized = true;
+            
+            if (!window.FPSCore) {
+
+                alert("게임 초기화 오류: FPSCore를 찾을 수 없습니다.");
+                return;
+            }
+
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('lobbyScreen').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('weapon').style.display = 'block';
+            
+            // 코어 초기화
+
+            window.FPSCore.initCore('gameContainer');
+
+            window.FPSCore.createFloor();
+            
+            // 외곽 벽
+            window.FPSCore.createStaticWall(0, 2.5, -25, 50, 5, 2);
+            window.FPSCore.createStaticWall(0, 2.5, 25, 50, 5, 2);
+            window.FPSCore.createStaticWall(-25, 2.5, 0, 2, 5, 50);
+            window.FPSCore.createStaticWall(25, 2.5, 0, 2, 5, 50);
+            
+            // 내부 벽
+            window.FPSWalls.initWalls();
+            window.FPSWalls.createDestructibleWall(0, 2, 0, 6, 4, 6);
+            window.FPSWalls.createDestructibleWall(-10, 1.5, -10, 4, 3, 4);
+            window.FPSWalls.createDestructibleWall(10, 1.5, 10, 4, 3, 4);
+            
+            // 힐팩
+            window.FPSHealthPack.initHealthPack();
+            window.FPSHealthPack.spawnHealthPack();
+            
+            // 플레이어 위치 설정
+            localCamera = window.FPSCore.camera();
+            localCamera.position.set(-15, 1.6, -15);
+            
+            // 다른 플레이어 생성
+            players.forEach(p => {
+                if (p.id !== myId) createRemotePlayer(p);
+            });
+            
+            // 초기 탄약 설정
+            weaponAmmo = {
+                1: WEAPONS[1].ammo,
+                2: WEAPONS[2].ammo,
+                3: WEAPONS[3].ammo
+            };
+            currentWeapon = 1;
+            window.FPSCore.setGameState('ammo', weaponAmmo[1]);
+            
+            window.FPSCore.setGameState('isPlaying', true);
+            document.getElementById('roomId').textContent = roomId || '-';
+            window.FPSCore.updateUI();
+            
+            // 포인터 락 - 화면 클릭 시 자동 활성화되도록 설정
+            document.addEventListener('pointerlockchange', () => {
+                isPointerLocked = document.pointerLockElement === window.FPSCore.renderer().domElement;
+            });
+            
+            // 떨어지는 벽
+            setInterval(() => {
+                if (window.FPSCore.gameState().isPlaying) {
+                    window.FPSWalls.spawnFallingWall();
+                }
+            }, 15000);
+            
+            animate();
+        }
+        
+        // 게임 루프
+        let lastPositionUpdate = 0;
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const gameState = window.FPSCore.gameState();
+            
+            if (gameState.isPlaying) {
+                updatePlayer();
+                interpolateRemotePlayers(); // 원격 플레이어 부드러운 이동
+                window.FPSWalls.updateFallingWalls((damage) => takeDamage(damage));
+                window.FPSHealthPack.checkHealthPackPickup(() => window.FPSCore.updateUI());
+                window.FPSHealthPack.updateHealthPackAnimation();
+                updateBullets();
+                window.FPSCore.updateParticles();
+                
+                // 위치 동기화 (50ms 마다 - 더 부드러운 동기화)
+                const now = Date.now();
+                if (now - lastPositionUpdate > 50) {
+                    lastPositionUpdate = now;
+                    send({
+                        type: 'updatePosition',
+                        position: { x: localCamera.position.x, y: localCamera.position.y, z: localCamera.position.z },
+                        rotation: { x: localCamera.rotation.x, y: localCamera.rotation.y }
+                    });
+                }
+            }
+            
+            window.FPSCore.renderer().render(window.FPSCore.scene(), localCamera);
+        }
+        
+        // 플레이어 이동
+        function updatePlayer() {
+            const camera = localCamera;
+            const CONFIG = window.FPSCore.CONFIG;
+            
+            camera.rotation.set(mouseY, mouseX, 0, 'YXZ');
+            
+            const speed = keys['ShiftLeft'] ? CONFIG.runSpeed : CONFIG.playerSpeed;
+            const direction = new THREE.Vector3();
+            
+            if (keys['KeyW']) direction.z -= 1;
+            if (keys['KeyS']) direction.z += 1;
+            if (keys['KeyA']) direction.x -= 1;
+            if (keys['KeyD']) direction.x += 1;
+            
+            direction.normalize().multiplyScalar(speed);
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+            
+            const newPos = camera.position.clone().add(direction);
+            newPos.y = camera.position.y;
+            
+            if (!checkWallCollision(newPos)) {
+                camera.position.x = newPos.x;
+                camera.position.z = newPos.z;
+            }
+            
+            playerVelocity.y -= CONFIG.gravity;
+            camera.position.y += playerVelocity.y;
+            
+            if (camera.position.y <= 1.6) {
+                camera.position.y = 1.6;
+                playerVelocity.y = 0;
+                playerOnGround = true;
+            }
+            
+            if (keys['Space'] && playerOnGround) {
+                playerVelocity.y = CONFIG.jumpForce;
+                playerOnGround = false;
+            }
+        }
+        
+        function checkWallCollision(position) {
+            const playerBox = new THREE.Box3(
+                new THREE.Vector3(position.x - 0.3, position.y - 1.6, position.z - 0.3),
+                new THREE.Vector3(position.x + 0.3, position.y + 0.1, position.z + 0.3)
+            );
+            
+            const mapObjects = window.FPSCore.mapObjects();
+            for (const obj of mapObjects) {
+                if (obj.userData && obj.userData.isFloor) continue;
+                const box = new THREE.Box3().setFromObject(obj);
+                if (box.intersectsBox(playerBox)) return true;
+            }
+            return false;
+        }
+        
+        // 발사
+        function shoot() {
+            const gameState = window.FPSCore.gameState();
+            const weapon = WEAPONS[currentWeapon];
+            
+            // 발사 간격 체크
+            const now = Date.now();
+            if (!gameState.lastShotTime) gameState.lastShotTime = 0;
+            if (now - gameState.lastShotTime < weapon.fireRate) return;
+            gameState.lastShotTime = now;
+            
+            if (weapon.melee) {
+                // 칼: 근접 공격
+                meleeAttack();
+                return;
+            }
+            
+            // 총: 탄약 체크 (무기별 탄약 사용)
+            if (weaponAmmo[currentWeapon] <= 0) return;
+            weaponAmmo[currentWeapon]--;
+            gameState.ammo = weaponAmmo[currentWeapon]; // UI 업데이트용
+            
+            window.FPSCore.updateUI();
+            window.FPSCore.showMuzzleFlash();
+            
+            const camera = window.FPSCore.camera();
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            
+            send({
+                type: 'shoot',
+                position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+                direction: { x: direction.x, y: direction.y, z: direction.z },
+                weapon: currentWeapon,
+                damage: weapon.damage
+            });
+            
+            // 로컬 히트 스캔 (저격총은 300m, 나머지는 100m)
+            const range = currentWeapon === 2 ? 300 : 100;
+            const raycaster = new THREE.Raycaster(camera.position, direction, 0, range);
+            
+            remotePlayers.forEach((player, id) => {
+                const box = new THREE.Box3().setFromObject(player.mesh);
+                if (raycaster.ray.intersectsBox(box)) {
+                    const headHeight = player.mesh.position.y + 1.4;
+                    const hitPoint = raycaster.ray.intersectBox(box, new THREE.Vector3());
+                    const isHeadshot = hitPoint && hitPoint.y >= headHeight;
+                    
+                    const damage = isHeadshot ? weapon.damage * 2 : weapon.damage;
+                    send({ type: 'hit', targetId: id, damage: damage, isHeadshot: isHeadshot });
+                    
+                    if (isHeadshot) showHeadshotMarker();
+                    window.FPSCore.showHitmarker();
+                }
+            });
+            
+            // 벽 체크
+            if (window.FPSWalls.destructibleWalls) {
+                window.FPSWalls.destructibleWalls().forEach(wall => {
+                    const box = new THREE.Box3().setFromObject(wall);
+                    if (raycaster.ray.intersectsBox(box)) {
+                        window.FPSWalls.damageWall(wall, 10);
+                    }
+                });
+            }
+        }
+        
+        // 근접 공격 (칼)
+        function meleeAttack() {
+            const camera = window.FPSCore.camera();
+            const myPos = camera.position.clone();
+            const myForward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            
+            // 애니메이션
+            const weaponEl = document.getElementById('weapon');
+            if (weaponEl) {
+                weaponEl.style.transform = 'rotateZ(-45deg)';
+                setTimeout(() => weaponEl.style.transform = 'rotateZ(0deg)', 200);
+            }
+            
+            // 근접 공격 범위 체크
+            remotePlayers.forEach((target, id) => {
+                const dist = myPos.distanceTo(target.mesh.position);
+                if (dist < 2.5) {
+                    const toTarget = target.mesh.position.clone().sub(myPos).normalize();
+                    if (toTarget.dot(myForward) > 0.5) {
+                        send({ type: 'hit', targetId: id, damage: WEAPONS[3].damage, isMelee: true });
+                        window.FPSCore.showHitmarker();
+                    }
+                }
+            });
+        }
+        
+        // 총알 업데이트
+        function updateBullets() {
+            const bullets = window.FPSCore.bullets();
+            const scene = window.FPSCore.scene();
+            
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                
+                // 이전 위치 저장
+                const prevPos = b.mesh.position.clone();
+                
+                // 이동
+                b.mesh.position.add(b.direction.clone().multiplyScalar(b.speed));
+                b.life--;
+                
+                // Raycasting으로 충돌 체크
+                const rayDir = b.direction.clone();
+                const rayDist = prevPos.distanceTo(b.mesh.position);
+                const raycaster = new THREE.Raycaster(prevPos, rayDir, 0, rayDist + 0.5);
+                
+                // 원격 플레이어 충돌 체크
+                let hit = false;
+                remotePlayers.forEach((player, id) => {
+                    if (hit) return;
+                    const box = new THREE.Box3().setFromObject(player.mesh);
+                    if (raycaster.ray.intersectsBox(box)) {
+                        hit = true;
+                    }
+                });
+                
+                // 벽 충돌 체크
+                if (!hit) {
+                    const mapObjects = window.FPSCore.mapObjects();
+                    for (const obj of mapObjects) {
+                        if (obj.userData && obj.userData.isFloor) continue;
+                        const box = new THREE.Box3().setFromObject(obj);
+                        if (raycaster.ray.intersectsBox(box)) {
+                            hit = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (hit || b.life <= 0 || b.mesh.position.y < 0) {
+                    if (hit) window.FPSCore.createImpactEffect(b.mesh.position);
+                    scene.remove(b.mesh);
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+        
+        // 무기 변경
+        function switchWeapon(weaponNum) {
+            if (weaponNum < 1 || weaponNum > 3) return;
+            currentWeapon = weaponNum;
+            toggleZoom(false);
+            
+            // UI용 탄약 업데이트
+            const gameState = window.FPSCore.gameState();
+            gameState.ammo = weaponAmmo[currentWeapon];
+            window.FPSCore.updateUI();
+            
+            send({ type: 'weaponChange', weapon: weaponNum });
+            
+            // UI 업데이트
+            const weapon = WEAPONS[weaponNum];
+            const weaponNames = { 1: '소총', 2: '저격총', 3: '칼' };
+            
+            const existing = document.getElementById('weaponDisplay');
+            if (existing) existing.remove();
+            
+            const display = document.createElement('div');
+            display.id = 'weaponDisplay';
+            display.style.cssText = `
+                position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+                background: rgba(0,0,0,0.7); padding: 10px 30px; border-radius: 10px;
+                border: 2px solid #0f0; color: #0f0; font-size: 20px; font-weight: bold;
+                z-index: 150; text-align: center;
+            `;
+            display.innerHTML = `
+                <div style="font-size: 14px; color: #888; margin-bottom: 5px;">[1] 소총  [2] 저격총  [3] 칼</div>
+                <div>${weaponNames[weaponNum]}</div>
+            `;
+            document.body.appendChild(display);
+            setTimeout(() => { display.style.opacity = '0'; setTimeout(() => display.remove(), 500); }, 2000);
+        }
+        
+        // 스코프 토글
+        function toggleZoom(zoomIn) {
+            if (currentWeapon !== 2) return;
+            
+            const camera = window.FPSCore.camera();
+            isZoomed = zoomIn;
+            
+            if (zoomIn) {
+                camera.fov = 20;
+                
+                const scope = document.createElement('div');
+                scope.id = 'scopeOverlay';
+                scope.style.cssText = `
+                    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                    width: 300px; height: 300px; border: 2px solid rgba(0,255,0,0.8);
+                    border-radius: 50%; z-index: 90; pointer-events: none;
+                    box-shadow: 0 0 20px rgba(0,255,0,0.3);
+                `;
+                scope.innerHTML = `
+                    <div style="position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: rgba(0,255,0,0.5);"></div>
+                    <div style="position: absolute; top: 0; left: 50%; width: 2px; height: 100%; background: rgba(0,255,0,0.5);"></div>
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; background: rgba(0,255,0,0.8); border-radius: 50%;"></div>
+                `;
+                document.body.appendChild(scope);
+                
+                const vignette = document.createElement('div');
+                vignette.id = 'scopeVignette';
+                vignette.style.cssText = `
+                    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                    background: radial-gradient(circle at center, transparent 150px, rgba(0,0,0,0.7) 300px);
+                    z-index: 80; pointer-events: none;
+                `;
+                document.body.appendChild(vignette);
+            } else {
+                camera.fov = originalFOV;
+                const scope = document.getElementById('scopeOverlay');
+                if (scope) scope.remove();
+                const vignette = document.getElementById('scopeVignette');
+                if (vignette) vignette.remove();
+            }
+            camera.updateProjectionMatrix();
+        }
+        
+        // 원격 플레이어
+        function createRemotePlayer(data) {
+            const group = new THREE.Group();
+            const teamColor = data.team === 'blue' ? 0x3366ff : 0xff3333;
+            
+            const bodyGeo = new THREE.BoxGeometry(0.6, 1.8, 0.4);
+            const bodyMat = new THREE.MeshLambertMaterial({ color: teamColor });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0.9;
+            group.add(body);
+            
+            const headGeo = new THREE.BoxGeometry(0.4, 0.4, 0.4);
+            const headMat = new THREE.MeshLambertMaterial({ color: 0xffccaa });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.y = 2;
+            group.add(head);
+            
+            const gunGeo = new THREE.BoxGeometry(0.1, 0.1, 0.4);
+            const gunMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+            const gun = new THREE.Mesh(gunGeo, gunMat);
+            gun.position.set(0.3, 1.3, 0.3);
+            group.add(gun);
+            
+            // 이름표
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(0, 0, 256, 64);
+            ctx.fillStyle = '#0f0';
+            ctx.font = 'bold 32px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(data.name, 128, 42);
+            
+            const nameTexture = new THREE.CanvasTexture(canvas);
+            const nameMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(2, 0.5),
+                new THREE.MeshBasicMaterial({ map: nameTexture, transparent: true })
+            );
+            nameMesh.position.y = 2.8;
+            group.add(nameMesh);
+            
+            // HP 바
+            const barGroup = new THREE.Group();
+            barGroup.position.y = 2.5;
+            barGroup.add(new THREE.Mesh(
+                new THREE.PlaneGeometry(1, 0.15),
+                new THREE.MeshBasicMaterial({ color: 0x333333 })
+            ));
+            const fill = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.95, 0.1),
+                new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+            );
+            fill.position.x = -0.475;
+            fill.geometry.translate(0.475, 0, 0.01);
+            barGroup.add(fill);
+            group.add(barGroup);
+            
+            const px = data.position && data.position.x !== undefined ? data.position.x : 0;
+            const pz = data.position && data.position.z !== undefined ? data.position.z : 0;
+            group.position.set(px, 0.1, pz);
+            window.FPSCore.scene().add(group);
+            
+            remotePlayers.set(data.id, { 
+                mesh: group, 
+                data, 
+                nameMesh, 
+                hpBar: fill,
+                targetPos: new THREE.Vector3(px, 0.1, pz),
+                targetRot: 0
+            });
+        }
+        
+        function removeRemotePlayer(id) {
+            const player = remotePlayers.get(id);
+            if (player) {
+                window.FPSCore.scene().remove(player.mesh);
+                remotePlayers.delete(id);
+            }
+        }
+        
+        function updateRemotePlayer(data) {
+            if (!data.position) return;
+            const player = remotePlayers.get(data.playerId);
+            if (player) {
+                // 목표 위치 저장 (보간용)
+                player.targetPos = new THREE.Vector3(data.position.x, 0.1, data.position.z);
+                player.targetRot = data.rotation.y + Math.PI;
+            }
+        }
+        
+        // 원격 플레이어 부드러운 이동 (animate에서 호출)
+        function interpolateRemotePlayers() {
+            remotePlayers.forEach(player => {
+                if (player.targetPos) {
+                    // 선형 보간 (lerp) - 0.15로 부드럽게
+                    player.mesh.position.lerp(player.targetPos, 0.15);
+                    // 회전도 부드럽게
+                    player.mesh.rotation.y += (player.targetRot - player.mesh.rotation.y) * 0.15;
+                }
+                player.nameMesh.lookAt(localCamera.position);
+            });
+        }
+        
+        function handleRemoteShoot(data) {
+            const startPos = new THREE.Vector3(data.position.x, data.position.y, data.position.z);
+            const direction = new THREE.Vector3(data.direction.x, data.direction.y, data.direction.z);
+            
+            const geo = new THREE.SphereGeometry(0.05, 8, 8);
+            const mat = new THREE.MeshBasicMaterial({ color: 0xff0000, emissive: 0xff0000, emissiveIntensity: 1 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(startPos);
+            window.FPSCore.scene().add(mesh);
+            
+            window.FPSCore.bullets().push({ mesh, direction, speed: 2, life: 50, owner: { isBot: true } });
+        }
+        
+        // 헤드샷 마커 표시
+        function showHeadshotMarker() {
+            const marker = document.createElement('div');
+            marker.textContent = 'HEADSHOT!';
+            marker.style.cssText = `
+                position: fixed;
+                top: 40%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 48px;
+                font-weight: bold;
+                color: #ff0000;
+                text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+                z-index: 200;
+                pointer-events: none;
+                animation: headshotAnim 1s ease-out forwards;
+            `;
+            document.body.appendChild(marker);
+            
+            // 헤드샷 사운드
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.value = 1200;
+                oscillator.type = 'square';
+                gainNode.gain.value = 0.3;
+                oscillator.start();
+                oscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {}
+            
+            setTimeout(() => marker.remove(), 1000);
+        }
+        
+        // 헤드샷 애니메이션 CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes headshotAnim {
+                0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+                20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                100% { transform: translate(-50%, -50%) scale(1) translateY(-50px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        function takeDamage(damage) {
+            const gameState = window.FPSCore.gameState();
+            gameState.health -= damage;
+            
+            const flash = document.createElement('div');
+            flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.3);pointer-events:none;z-index:250;';
+            document.body.appendChild(flash);
+            setTimeout(() => flash.remove(), 100);
+            
+            if (gameState.health <= 0) {
+                gameState.health = 0;
+                gameState.deaths++;
+                window.FPSCore.updateUI();
+                startRespawnCountdown(() => send({ type: 'respawn' }));
+            } else {
+                window.FPSCore.updateUI();
+            }
+        }
+        
+        function handleKill(killerId, victimId) {
+            const isMyKill = killerId === myId;
+            if (isMyKill) {
+                window.FPSCore.setGameState('kills', window.FPSCore.gameState().kills + 1);
+                window.FPSCore.setGameState('score', window.FPSCore.gameState().score + 100);
+                window.FPSCore.updateUI();
+            }
+            
+            const killer = remotePlayers.get(killerId)?.data?.name || (isMyKill ? myName : '상대방');
+            const victim = remotePlayers.get(victimId)?.data?.name || (victimId === myId ? myName : '상대방');
+            window.FPSCore.addKillFeed(killer, victim);
+        }
+        
+        function respawnLocal(position) {
+            window.FPSCore.setGameState('health', 100);
+            
+            // 무기별 탄약 리셋
+            weaponAmmo = {
+                1: WEAPONS[1].ammo,
+                2: WEAPONS[2].ammo,
+                3: WEAPONS[3].ammo
+            };
+            window.FPSCore.setGameState('ammo', weaponAmmo[currentWeapon]);
+            
+            const camera = window.FPSCore.camera();
+            camera.position.set(position.x, 1.6, position.z);
+            window.FPSCore.updateUI();
+        }
+        
+        function handleRemoteRespawn(data) {
+            const player = remotePlayers.get(data.playerId);
+            if (player) {
+                player.mesh.position.set(data.position.x, 0.1, data.position.z);
+            }
+        }
+        
+        // localStorage에서 데이터 읽기
+        const mode = localStorage.getItem('fpsArenaMode');
+        const savedRoomId = localStorage.getItem('fpsArenaRoomId');
+        const savedNickname = localStorage.getItem('fpsArenaNickname');
+        
+        // 데이터가 없으면 메인으로 돌아가기
+        if (!mode || !savedNickname) {
+            alert('잘못된 접속입니다. 메인 화면에서 다시 시도해주세요.');
+            window.location.href = 'index.html';
+        }
+        
+        // WebSocket 연결 후 자동으로 방 생성 또는 참여
+        function onConnected() {
+            myName = savedNickname;
+            if (mode === 'multiplayer') {
+                if (savedRoomId && savedRoomId !== 'null') {
+                    // 방 참여자로 입장
+                    send({ type: 'joinRoom', roomId: savedRoomId, playerName: savedNickname });
+                } else {
+                    // 방 장으로 방 생성
+                    send({ type: 'createRoom', playerName: savedNickname });
+                }
+            }
+        }
+        
+        // 초기화 - WebSocket 연결
+        connect();
+        
+        // 연결 성공 후 자동 시작
+        const checkConnection = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                clearInterval(checkConnection);
+                onConnected();
+            }
+        }, 100);
+    </script>
+</body>
+</html>

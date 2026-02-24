@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FPS Arena - 싱글 플레이어</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #gameContainer { position: relative; width: 100vw; height: 100vh; }
+        
+        /* 크로스헤어 */
+        #crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 20px; height: 20px; pointer-events: none; z-index: 100; }
+        #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(0, 255, 0, 0.8); }
+        #crosshair::before { width: 2px; height: 20px; left: 50%; transform: translateX(-50%); }
+        #crosshair::after { width: 20px; height: 2px; top: 50%; transform: translateY(-50%); }
+        #crosshair::before, #crosshair::after { box-shadow: 0 0 10px rgba(0, 255, 0, 0.5); }
+        
+        /* 히트마커 */
+        #hitmarker { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; pointer-events: none; z-index: 101; display: none; }
+        #hitmarker.show { display: block; animation: hitmarkerAnim 0.15s ease-out; }
+        #hitmarker::before, #hitmarker::after { content: ''; position: absolute; width: 100%; height: 4px; background: #ff0000; top: 50%; left: 0; }
+        #hitmarker::before { transform: translateY(-50%) rotate(45deg); }
+        #hitmarker::after { transform: translateY(-50%) rotate(-45deg); }
+        @keyframes hitmarkerAnim { 0% { transform: translate(-50%, -50%) scale(1.5); opacity: 1; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+        
+        /* UI */
+        #ui { position: absolute; top: 20px; left: 20px; color: #fff; z-index: 100; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }
+        #ui h2 { font-size: 24px; margin-bottom: 10px; color: #0f0; }
+        .stat { font-size: 18px; margin: 5px 0; }
+        .hp-bar { width: 200px; height: 20px; background: #333; border: 2px solid #555; margin-top: 10px; position: relative; }
+        .hp-fill { height: 100%; background: linear-gradient(90deg, #f00, #ff0, #0f0); transition: width 0.2s; }
+        .hp-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: bold; color: #fff; }
+        
+        /* 시작/게임오버 화면 */
+        #startScreen, #gameOverScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 200; color: #fff; }
+        #gameOverScreen { display: none; }
+        h1 { font-size: 64px; margin-bottom: 20px; text-shadow: 0 0 20px #0f0; color: #0f0; }
+        .btn { padding: 15px 40px; font-size: 24px; background: transparent; border: 3px solid #0f0; color: #0f0; cursor: pointer; transition: all 0.3s; margin: 10px; }
+        .btn:hover { background: #0f0; color: #000; box-shadow: 0 0 30px #0f0; }
+        .controls { margin-top: 30px; text-align: center; color: #aaa; }
+        .controls p { margin: 5px 0; }
+        
+        /* 킬 피드 */
+        #killFeed { position: absolute; top: 20px; right: 20px; z-index: 100; text-align: right; }
+        .kill-message { color: #ff0; font-size: 16px; margin: 5px 0; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); animation: fadeOut 3s forwards; }
+        @keyframes fadeOut { 0% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+        
+        /* 무기 */
+        #weapon { position: absolute; bottom: 50px; right: 100px; width: 200px; height: 100px; z-index: 50; }
+        .gun { width: 100%; height: 100%; background: linear-gradient(135deg, #444, #222); border-radius: 10px; position: relative; transform-origin: bottom center; transition: transform 0.1s; }
+        .gun.recoil { transform: rotateX(-15deg) translateY(-10px); }
+        .gun-barrel { position: absolute; top: 20px; left: -30px; width: 80px; height: 20px; background: #111; border-radius: 5px; }
+        .muzzle-flash { position: absolute; top: 10px; left: -50px; width: 30px; height: 40px; background: radial-gradient(ellipse, #ff0, #f80, transparent); opacity: 0; transition: opacity 0.05s; }
+        .muzzle-flash.active { opacity: 1; }
+        
+        /* 리스폰 화면 */
+        #respawnScreen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 300; color: #fff; }
+        #respawnScreen.show { display: flex; }
+        #respawnCount { font-size: 80px; font-weight: bold; color: #ff6600; margin-bottom: 20px; }
+        #respawnText { font-size: 24px; color: #aaa; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="crosshair"></div>
+        <div id="hitmarker"></div>
+        
+        <div id="respawnScreen">
+            <div id="respawnCount">3</div>
+            <div id="respawnText">초 후 부활...</div>
+        </div>
+        
+        <div id="ui" style="display: none;">
+            <h2>🎮 FPS ARENA</h2>
+            <div class="stat">킬: <span id="kills">0</span> / 데스: <span id="deaths">0</span></div>
+            <div class="stat">점수: <span id="score">0</span></div>
+            <div class="hp-bar">
+                <div class="hp-fill" id="hpFill" style="width: 100%"></div>
+                <div class="hp-text" id="hpText">100/100</div>
+            </div>
+            <div class="stat" style="margin-top: 10px;">탄약: <span id="ammo">30</span>/30</div>
+        </div>
+        
+        <div id="killFeed"></div>
+        
+        <div id="weapon" style="display: none;">
+            <div class="gun" id="gun">
+                <div class="gun-barrel"></div>
+                <div class="muzzle-flash" id="muzzleFlash"></div>
+            </div>
+        </div>
+        
+        <div id="startScreen">
+            <h1>🔫 FPS ARENA</h1>
+            <p style="font-size: 20px; margin-bottom: 30px;">싱글 플레이어 - 트 대전</p>
+            <button class="btn" onclick="startGame()">게임 시작</button>
+            <div class="controls">
+                <p><strong>조작법</strong></p>
+                <p>WASD - 이동</p>
+                <p>마우스 - 조준</p>
+                <p>좌클릭 - 발사</p>
+                <p>R - 재장전</p>
+                <p>Space - 점프</p>
+                <p>Shift - 달리기</p>
+            </div>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h1>게임 종료</h1>
+            <p style="font-size: 24px; margin: 20px;">최종 점수: <span id="finalScore">0</span></p>
+            <p style="font-size: 20px; margin: 10px;">킬: <span id="finalKills">0</span> / 데스: <span id="finalDeaths">0</span></p>
+            <button class="btn" onclick="location.reload()">다시하기</button>
+            <button class="btn" onclick="location.href='index.html'" style="border-color: #888; color: #888;">메인 메뉴</button>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- 게임 모듈 -->
+    <script src="js/core.js"></script>
+    <script src="js/walls.js"></script>
+    <script src="js/healthpack.js"></script>
+
+    <script>
+        // ============================================
+        // 싱글 플레이어 로직
+        // ============================================
+        
+        let player, bot;
+        let isPointerLocked = false;
+        const keys = {};
+        let mouseX = 0, mouseY = 0;
+        let playerVelocity = new THREE.Vector3();
+        let playerOnGround = false;
+        
+        // 무기 설정
+        const WEAPONS = {
+            1: { name: 'rifle', damage: 20, fireRate: 100, ammo: 30, reloadTime: 2000, zoom: 1 },
+            2: { name: 'sniper', damage: 80, fireRate: 1500, ammo: 5, reloadTime: 3000, zoom: 0.3 },
+            3: { name: 'knife', damage: 50, fireRate: 500, ammo: Infinity, reloadTime: 0, zoom: 1, melee: true }
+        };
+        let currentWeapon = 1;
+        let isZoomed = false;
+        let originalFOV = 75;
+        
+        // 입력 이벤트
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            
+            if (!window.FPSCore.gameState().isPlaying || !player || player.isDead) return;
+            
+            // 재장전
+            if (e.code === 'KeyR') {
+                player.reload();
+            }
+            
+            // 무기 변경
+            if (e.code === 'Digit1') switchWeapon(1);
+            if (e.code === 'Digit2') switchWeapon(2);
+            if (e.code === 'Digit3') switchWeapon(3);
+        });
+        
+        document.addEventListener('keyup', (e) => keys[e.code] = false);
+        
+        // 마우스 입력
+        document.addEventListener('mousedown', (e) => {
+            if (!window.FPSCore.gameState().isPlaying || !isPointerLocked || !player || player.isDead) return;
+            
+            if (e.button === 0) {
+                // 좌클릭: 발사
+                player.fire();
+            } else if (e.button === 2) {
+                // 우클릭: 스코프 (저격총만)
+                if (currentWeapon === 2) toggleZoom(true);
+            }
+        });
+        
+        document.addEventListener('mouseup', (e) => {
+            if (e.button === 2) {
+                // 우클릭 해제: 스코프 해제
+                toggleZoom(false);
+            }
+        });
+        
+        // 우클릭 메뉴 방지
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isPointerLocked && window.FPSCore.gameState().isPlaying) {
+                const CONFIG = window.FPSCore.CONFIG;
+                const sensitivity = isZoomed ? CONFIG.mouseSensitivity * 0.5 : CONFIG.mouseSensitivity;
+                mouseX -= e.movementX * sensitivity;
+                mouseY -= e.movementY * sensitivity;
+                mouseY = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, mouseY));
+            }
+        });
+        
+        // 게임 시작
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('ui').style.display = 'block';
+            document.getElementById('weapon').style.display = 'block';
+            
+            // 코어 초기화
+            const core = window.FPSCore.initCore('gameContainer');
+            const camera = core.camera;
+            
+            // 바닥 생성
+            window.FPSCore.createFloor();
+            
+            // 외곽 벽 (파괴 불가)
+            window.FPSCore.createStaticWall(0, 2.5, -25, 50, 5, 2);
+            window.FPSCore.createStaticWall(0, 2.5, 25, 50, 5, 2);
+            window.FPSCore.createStaticWall(-25, 2.5, 0, 2, 5, 50);
+            window.FPSCore.createStaticWall(25, 2.5, 0, 2, 5, 50);
+            
+            // 내부 벽 (파괴 가능)
+            window.FPSWalls.initWalls();
+            window.FPSWalls.createDestructibleWall(0, 2, 0, 6, 4, 6);
+            window.FPSWalls.createDestructibleWall(-10, 1.5, -10, 4, 3, 4);
+            window.FPSWalls.createDestructibleWall(10, 1.5, 10, 4, 3, 4);
+            window.FPSWalls.createDestructibleWall(-10, 1.5, 10, 4, 3, 4);
+            window.FPSWalls.createDestructibleWall(10, 1.5, -10, 4, 3, 4);
+            
+            // 힐팩 초기화
+            window.FPSHealthPack.initHealthPack();
+            window.FPSHealthPack.spawnHealthPack(new THREE.Vector3(0, 0.5, 0));
+            
+            // 초기 무기 설정
+            currentWeapon = 1;
+            
+            // 플레이어 생성
+            player = new Character('Player', new THREE.Vector3(-15, 0.1, -15), false);
+            camera.position.set(-15, 1.6, -15);
+            
+            // 봇 생성
+            bot = new Character('Bot', new THREE.Vector3(15, 0.1, 15), true);
+            bot.ai = new BotAI(bot);
+            
+            // 게임 상태 설정
+            window.FPSCore.setGameState('isPlaying', true);
+            window.FPSCore.updateUI(player);
+            
+            // 포인터 락
+            core.renderer.domElement.requestPointerLock();
+            document.addEventListener('pointerlockchange', () => {
+                isPointerLocked = document.pointerLockElement === core.renderer.domElement;
+            });
+            
+            // 떨어지는 벽 주기적 생성
+            setInterval(() => {
+                if (window.FPSCore.gameState().isPlaying) {
+                    window.FPSWalls.spawnFallingWall();
+                }
+            }, 15000);
+            
+            // 게임 루프
+            animate();
+        }
+        
+        // 게임 루프
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const gameState = window.FPSCore.gameState();
+            if (gameState.isPlaying) {
+                // 플레이어 업데이트
+                if (player && !player.isDead) {
+                    updatePlayer();
+                }
+                
+                // 봇 업데이트
+                if (bot && bot.ai) bot.ai.update();
+                if (bot) bot.updateHealthBar();
+                
+                // 벽/힐팩 업데이트
+                window.FPSWalls.updateFallingWalls((damage) => {
+                    if (player && !player.isDead) {
+                        player.takeDamage(damage, bot);
+                    }
+                });
+                
+                window.FPSHealthPack.checkHealthPackPickup((amount) => {
+                    window.FPSCore.updateUI(player);
+                });
+                window.FPSHealthPack.updateHealthPackAnimation();
+                
+                // 총알/파티클 업데이트
+                updateBullets();
+                window.FPSCore.updateParticles();
+            }
+            
+            window.FPSCore.renderer().render(window.FPSCore.scene(), window.FPSCore.camera());
+        }
+        
+        // 플레이어 이동
+        function updatePlayer() {
+            const camera = window.FPSCore.camera();
+            const CONFIG = window.FPSCore.CONFIG;
+            
+            // 회전
+            camera.rotation.set(mouseY, mouseX, 0, 'YXZ');
+            
+            // 이동
+            const speed = keys['ShiftLeft'] ? CONFIG.runSpeed : CONFIG.playerSpeed;
+            const direction = new THREE.Vector3();
+            
+            if (keys['KeyW']) direction.z -= 1;
+            if (keys['KeyS']) direction.z += 1;
+            if (keys['KeyA']) direction.x -= 1;
+            if (keys['KeyD']) direction.x += 1;
+            
+            direction.normalize().multiplyScalar(speed);
+            direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), camera.rotation.y);
+            
+            // 충돌 체크
+            const newPos = camera.position.clone().add(direction);
+            newPos.y = camera.position.y;
+            if (!checkWallCollision(newPos)) {
+                camera.position.x = newPos.x;
+                camera.position.z = newPos.z;
+            }
+            
+            // 중력
+            playerVelocity.y -= CONFIG.gravity;
+            camera.position.y += playerVelocity.y;
+            
+            if (camera.position.y <= 1.6) {
+                camera.position.y = 1.6;
+                playerVelocity.y = 0;
+                playerOnGround = true;
+            }
+            
+            // 점프
+            if (keys['Space'] && playerOnGround) {
+                playerVelocity.y = CONFIG.jumpForce;
+                playerOnGround = false;
+            }
+            
+            // 플레이어 메쉬 위치 동기화
+            if (player && player.mesh) {
+                player.mesh.position.x = camera.position.x;
+                player.mesh.position.z = camera.position.z;
+            }
+        }
+        
+        // 무기 변경
+        function switchWeapon(weaponNum) {
+            if (weaponNum < 1 || weaponNum > 3) return;
+            
+            // 현재 무기 탄약 저장
+            if (player) {
+                player.weaponAmmo[currentWeapon] = player.ammo;
+            }
+            
+            currentWeapon = weaponNum;
+            
+            // 새 무기 탄약 불러오기
+            if (player) {
+                player.ammo = player.weaponAmmo[weaponNum];
+            }
+            
+            // UI 업데이트
+            updateWeaponUI();
+            window.FPSCore.updateUI(player);
+            
+            // 스코프 해제
+            toggleZoom(false);
+            
+            // 무기 변경 사운드
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 800;
+                osc.type = 'sine';
+                gain.gain.value = 0.2;
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.1);
+            } catch (e) {}
+        }
+        
+        // 무기 UI 업데이트
+        function updateWeaponUI() {
+            const weapon = WEAPONS[currentWeapon];
+            const weaponNames = { 1: '소총', 2: '저격총', 3: '칼' };
+            
+            // 기존 무기 표시 제거
+            const existing = document.getElementById('weaponDisplay');
+            if (existing) existing.remove();
+            
+            // 새 무기 표시
+            const display = document.createElement('div');
+            display.id = 'weaponDisplay';
+            display.style.cssText = `
+                position: fixed;
+                bottom: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(0,0,0,0.7);
+                padding: 10px 30px;
+                border-radius: 10px;
+                border: 2px solid #0f0;
+                color: #0f0;
+                font-size: 20px;
+                font-weight: bold;
+                z-index: 150;
+                text-align: center;
+            `;
+            display.innerHTML = `
+                <div style="font-size: 14px; color: #888; margin-bottom: 5px;">[1] 소총  [2] 저격총  [3] 칼</div>
+                <div>${weaponNames[currentWeapon]}</div>
+                <div style="font-size: 14px; color: #aaa;">${weapon.melee ? '근접 무기' : `탄약: ${weapon.ammo}`}</div>
+            `;
+            document.body.appendChild(display);
+            
+            // 2초 후 페이드 아웃
+            setTimeout(() => {
+                if (display.parentNode) {
+                    display.style.transition = 'opacity 0.5s';
+                    display.style.opacity = '0';
+                    setTimeout(() => display.remove(), 500);
+                }
+            }, 2000);
+        }
+        
+        // 스코프 토글
+        function toggleZoom(zoomIn) {
+            if (currentWeapon !== 2) return; // 저격총만 가능
+            
+            const camera = window.FPSCore.camera();
+            isZoomed = zoomIn;
+            
+            if (zoomIn) {
+                // 줌 인
+                camera.fov = 20; // 좁은 시야
+                
+                // 스코프 UI
+                const scope = document.createElement('div');
+                scope.id = 'scopeOverlay';
+                scope.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 300px;
+                    height: 300px;
+                    border: 2px solid rgba(0,255,0,0.8);
+                    border-radius: 50%;
+                    z-index: 90;
+                    pointer-events: none;
+                    box-shadow: 0 0 20px rgba(0,255,0,0.3);
+                `;
+                scope.innerHTML = `
+                    <div style="position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: rgba(0,255,0,0.5);"></div>
+                    <div style="position: absolute; top: 0; left: 50%; width: 2px; height: 100%; background: rgba(0,255,0,0.5);"></div>
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 10px; height: 10px; background: rgba(0,255,0,0.8); border-radius: 50%;"></div>
+                `;
+                document.body.appendChild(scope);
+                
+                // 화면 어둡게
+                const vignette = document.createElement('div');
+                vignette.id = 'scopeVignette';
+                vignette.style.cssText = `
+                    position: fixed;
+                    top: 0; left: 0; width: 100%; height: 100%;
+                    background: radial-gradient(circle at center, transparent 150px, rgba(0,0,0,0.7) 300px);
+                    z-index: 80;
+                    pointer-events: none;
+                `;
+                document.body.appendChild(vignette);
+                
+            } else {
+                // 줌 아웃
+                camera.fov = originalFOV;
+                
+                // 스코프 UI 제거
+                const scope = document.getElementById('scopeOverlay');
+                if (scope) scope.remove();
+                const vignette = document.getElementById('scopeVignette');
+                if (vignette) vignette.remove();
+            }
+            
+            camera.updateProjectionMatrix();
+        }
+        
+        // 헤드샷 마커 표시
+        function showHeadshotMarker() {
+            const marker = document.createElement('div');
+            marker.textContent = 'HEADSHOT!';
+            marker.style.cssText = `
+                position: fixed;
+                top: 40%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 48px;
+                font-weight: bold;
+                color: #ff0000;
+                text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+                z-index: 200;
+                pointer-events: none;
+                animation: headshotAnim 1s ease-out forwards;
+            `;
+            document.body.appendChild(marker);
+            
+            // 헤드샷 사운드
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.frequency.value = 1200;
+                oscillator.type = 'square';
+                gainNode.gain.value = 0.3;
+                oscillator.start();
+                oscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {}
+            
+            setTimeout(() => marker.remove(), 1000);
+        }
+        
+        // 헤드샷 애니메이션 CSS
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes headshotAnim {
+                0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+                20% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+                100% { transform: translate(-50%, -50%) scale(1) translateY(-50px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        // 벽 충돌 체크 (바닥 제외)
+        function checkWallCollision(position) {
+            const playerBox = new THREE.Box3(
+                new THREE.Vector3(position.x - 0.3, position.y - 1.6, position.z - 0.3),
+                new THREE.Vector3(position.x + 0.3, position.y + 0.1, position.z + 0.3)
+            );
+            
+            const mapObjects = window.FPSCore.mapObjects();
+            for (const obj of mapObjects) {
+                // 바닥은 무시
+                if (obj.userData && obj.userData.isFloor) continue;
+                
+                const box = new THREE.Box3().setFromObject(obj);
+                if (box.intersectsBox(playerBox)) return true;
+            }
+            return false;
+        }
+        
+        // 총알 업데이트
+        function updateBullets() {
+            const bullets = window.FPSCore.bullets();
+            const scene = window.FPSCore.scene();
+            
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                
+                // 이전 위치 저장
+                const prevPos = b.mesh.position.clone();
+                
+                // 이동
+                const moveVec = b.direction.clone().multiplyScalar(b.speed);
+                b.mesh.position.add(moveVec);
+                b.life--;
+                
+                let hit = false;
+                let hitCharacter = false;
+                
+                // Raycasting으로 충돌 체크 (프레임 사이 통과 방지)
+                const rayDir = b.direction.clone();
+                const rayDist = prevPos.distanceTo(b.mesh.position);
+                const raycaster = new THREE.Raycaster(prevPos, rayDir, 0, rayDist + 0.5);
+                
+                // 캐릭터 충돌 (Raycasting)
+                [player, bot].forEach(char => {
+                    if (!hit && char !== b.owner && !char.isDead) {
+                        const box = new THREE.Box3().setFromObject(char.mesh);
+                        
+                        if (raycaster.ray.intersectsBox(box)) {
+                            // 충돌 지점 계산
+                            const hitPoint = raycaster.ray.intersectBox(box, new THREE.Vector3());
+                            
+                            // 헤드샷 체크
+                            const headHeight = char.mesh.position.y + 1.4;
+                            const isHeadshot = hitPoint && hitPoint.y >= headHeight;
+                            
+                            // 데미지 계산
+                            const weaponDamage = b.owner.isBot ? WEAPONS[1].damage : WEAPONS[currentWeapon].damage;
+                            const damage = isHeadshot ? weaponDamage * 2 : weaponDamage;
+                            
+                            char.takeDamage(damage, b.owner, isHeadshot);
+                            hit = true;
+                            hitCharacter = true;
+                            
+                            if (isHeadshot && !b.owner.isBot) {
+                                showHeadshotMarker();
+                            }
+                        }
+                    }
+                });
+                
+                // 히트마커
+                if (hitCharacter && !b.owner.isBot) {
+                    window.FPSCore.showHitmarker();
+                }
+                
+                // 벽 충돌 (기존 방식 유지)
+                if (!hit) {
+                    const wallHit = window.FPSWalls.checkBulletWallCollision(b.mesh.position);
+                    if (wallHit.hit) {
+                        hit = true;
+                        if (wallHit.wall) {
+                            window.FPSWalls.damageWall(wallHit.wall, 10);
+                        }
+                    }
+                }
+                
+                // 제거
+                if (hit || b.life <= 0 || b.mesh.position.y < 0) {
+                    if (hit) window.FPSCore.createImpactEffect(b.mesh.position);
+                    scene.remove(b.mesh);
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+        
+        // 캐릭터 클래스
+        class Character {
+            constructor(name, position, isBot) {
+                this.name = name;
+                this.isBot = isBot;
+                this.maxHealth = window.FPSCore.CONFIG.maxHealth;
+                this.health = this.maxHealth;
+                this.isDead = false;
+                this.lastShotTime = 0;
+                this.respawnTime = 3000;
+                
+                // 무기별 탄약 수 저장
+                this.weaponAmmo = {
+                    1: WEAPONS[1].ammo,  // 소총: 30
+                    2: WEAPONS[2].ammo,  // 저격총: 5
+                    3: WEAPONS[3].ammo   // 칼: Infinity
+                };
+                this.ammo = this.weaponAmmo[1]; // 기본 소총
+                
+                // 메쉬 생성
+                const geo = new THREE.BoxGeometry(0.6, 1.8, 0.4);
+                const mat = new THREE.MeshLambertMaterial({ color: isBot ? 0xff3333 : 0x3333ff });
+                this.mesh = new THREE.Mesh(geo, mat);
+                this.mesh.position.copy(position);
+                this.mesh.position.y = 0.9;
+                this.mesh.castShadow = true;
+                window.FPSCore.scene().add(this.mesh);
+                
+                // HP 바
+                this.createHealthBar();
+            }
+            
+            createHealthBar() {
+                this.healthBarGroup = new THREE.Group();
+                this.healthBarGroup.position.y = 2.2;
+                
+                const bgGeo = new THREE.PlaneGeometry(1, 0.15);
+                const bgMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
+                const bg = new THREE.Mesh(bgGeo, bgMat);
+                this.healthBarGroup.add(bg);
+                
+                const fillGeo = new THREE.PlaneGeometry(0.95, 0.1);
+                const fillMat = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+                this.healthBar = new THREE.Mesh(fillGeo, fillMat);
+                this.healthBar.position.x = -0.475;
+                this.healthBar.geometry.translate(0.475, 0, 0.01);
+                this.healthBarGroup.add(this.healthBar);
+                
+                this.mesh.add(this.healthBarGroup);
+                this.healthBarGroup.visible = false;
+            }
+            
+            updateHealthBar() {
+                if (this.isBot && this.healthBarGroup) {
+                    this.healthBarGroup.lookAt(window.FPSCore.camera().position);
+                }
+                const scale = this.health / this.maxHealth;
+                this.healthBar.scale.x = Math.max(0, scale);
+                this.healthBar.material.color.setHSL(scale * 0.33, 1, 0.5);
+            }
+            
+            canFire() {
+                const weapon = WEAPONS[currentWeapon];
+                const now = Date.now();
+                
+                // 칼은 항상 발사 가능 (근접)
+                if (weapon.melee) {
+                    return now - this.lastShotTime > weapon.fireRate;
+                }
+                
+                // 총은 탄약 확인
+                return now - this.lastShotTime > weapon.fireRate && this.ammo > 0;
+            }
+            
+            fire() {
+                const weapon = WEAPONS[currentWeapon];
+                
+                if (!this.canFire()) {
+                    if (!weapon.melee && this.ammo <= 0) this.reload();
+                    return false;
+                }
+                
+                this.lastShotTime = Date.now();
+                
+                let startPos;
+                let direction;
+                
+                if (this.isBot) {
+                    // 트: 메쉬 위치 + 눈 높이에서 발사 (봇은 소총만 사용)
+                    startPos = this.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0));
+                    direction = window.FPSCore.camera().position.clone().sub(startPos).normalize();
+                    const spread = (1 - window.FPSCore.CONFIG.botAccuracy) * 0.1;
+                    direction.x += (Math.random() - 0.5) * spread;
+                    direction.y += (Math.random() - 0.5) * spread;
+                    direction.normalize();
+                    
+                    // 봇 탄약 감소
+                    if (this.weaponAmmo[1] > 0) {
+                        this.weaponAmmo[1]--;
+                    }
+                } else {
+                    // 플레이어: 칼처 위치에서 발사 (조준선과 일치)
+                    const camera = window.FPSCore.camera();
+                    startPos = camera.position.clone();
+                    
+                    // getWorldDirection 사용 (더 정확한 방향 계산)
+                    direction = new THREE.Vector3();
+                    camera.getWorldDirection(direction);
+                    
+                    if (!weapon.melee) {
+                        this.ammo--;
+                        this.weaponAmmo[currentWeapon] = this.ammo; // 해당 무기 탄약 저장
+                        window.FPSCore.showMuzzleFlash();
+                        window.FPSCore.updateUI(this);
+                        updateWeaponUI();
+                    }
+                }
+                
+                if (weapon.melee) {
+                    // 칼: 근접 공격
+                    this.meleeAttack();
+                } else {
+                    // 총: 총알 발사 (저격총은 300m, 나머지는 100m)
+                    const bulletLife = currentWeapon === 2 ? 300 : 100;
+                    window.FPSCore.createBullet(startPos, direction, this, bulletLife);
+                }
+                
+                return true;
+            }
+            
+            meleeAttack() {
+                // 칼 휘두르기 애니메이션
+                const camera = window.FPSCore.camera();
+                const weaponEl = document.getElementById('weapon');
+                if (weaponEl) {
+                    weaponEl.style.transform = 'rotateZ(-45deg)';
+                    setTimeout(() => {
+                        weaponEl.style.transform = 'rotateZ(0deg)';
+                    }, 200);
+                }
+                
+                // 근접 공격 범위 체크
+                const attackRange = 2.5;
+                const myPos = this.mesh.position.clone();
+                
+                [player, bot].forEach(target => {
+                    if (target === this || target.isDead) return;
+                    
+                    const dist = myPos.distanceTo(target.mesh.position);
+                    if (dist < attackRange) {
+                        // 방향 체크 (정면에 있는지)
+                        const toTarget = target.mesh.position.clone().sub(myPos).normalize();
+                        const myForward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), 
+                            this.isBot ? this.mesh.rotation.y : window.FPSCore.camera().rotation.y);
+                        
+                        if (toTarget.dot(myForward) > 0.5) { // 정면 60도 범위
+                            target.takeDamage(WEAPONS[3].damage, this);
+                            if (!this.isBot) window.FPSCore.showHitmarker();
+                        }
+                    }
+                });
+            }
+            
+            reload() {
+                const weapon = WEAPONS[currentWeapon];
+                if (weapon.melee || this.ammo >= weapon.ammo) return;
+                
+                if (!this.isBot) {
+                    document.getElementById('ammo').textContent = '장전중...';
+                }
+                
+                setTimeout(() => {
+                    this.ammo = weapon.ammo;
+                    this.weaponAmmo[currentWeapon] = this.ammo; // 해당 무기 탄약 저장
+                    if (!this.isBot) {
+                        window.FPSCore.updateUI(this);
+                        updateWeaponUI();
+                    }
+                }, weapon.reloadTime);
+            }
+            
+            takeDamage(damage, attacker, isHeadshot = false) {
+                if (this.isDead) return;
+                
+                this.health -= damage;
+                this.updateHealthBar();
+                this.healthBarGroup.visible = true;
+                
+                // 피격 효과
+                const flash = new THREE.PointLight(0xff0000, 2, 5);
+                flash.position.copy(this.mesh.position);
+                flash.position.y += 1;
+                window.FPSCore.scene().add(flash);
+                setTimeout(() => window.FPSCore.scene().remove(flash), 100);
+                
+                if (!this.isBot) {
+                    // 플레이어가 맞으면 화면 효과
+                    const bgFlash = document.createElement('div');
+                    bgFlash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,0,0,0.3);pointer-events:none;z-index:250;';
+                    document.body.appendChild(bgFlash);
+                    setTimeout(() => bgFlash.remove(), 100);
+                }
+                
+                if (this.health <= 0) {
+                    this.die(attacker, isHeadshot);
+                }
+            }
+            
+            die(killer) {
+                this.isDead = true;
+                this.mesh.visible = false;
+                this.healthBarGroup.visible = false;
+                
+                window.FPSCore.addKillFeed(killer.name, this.name);
+                
+                if (this.isBot) {
+                    // 봇이 죽음 = 플레이어가 봇을 죽임
+                    window.FPSCore.setGameState('kills', window.FPSCore.gameState().kills + 1);
+                    window.FPSCore.setGameState('score', window.FPSCore.gameState().score + 100);
+                } else {
+                    // 플레이어가 죽음
+                    window.FPSCore.setGameState('deaths', window.FPSCore.gameState().deaths + 1);
+                }
+                // 항상 플레이어의 UI 업데이트
+                window.FPSCore.updateUI(player);
+                
+                // 리스폰
+                if (this.isBot) {
+                    setTimeout(() => this.respawn(), this.respawnTime);
+                } else {
+                    window.FPSCore.startRespawnCountdown(() => this.respawn());
+                }
+            }
+            
+            respawn() {
+                this.health = this.maxHealth;
+                this.isDead = false;
+                
+                // 모든 무기 탄약 리셋
+                this.weaponAmmo = {
+                    1: WEAPONS[1].ammo,
+                    2: WEAPONS[2].ammo,
+                    3: WEAPONS[3].ammo
+                };
+                this.ammo = this.weaponAmmo[currentWeapon];
+                
+                this.mesh.visible = true;
+                this.healthBarGroup.visible = false;
+                this.updateHealthBar();
+                
+                const spawnPoints = [
+                    new THREE.Vector3(-15, 0.1, -15),
+                    new THREE.Vector3(15, 0.1, 15),
+                    new THREE.Vector3(-15, 0.1, 15),
+                    new THREE.Vector3(15, 0.1, -15)
+                ];
+                const spawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+                
+                this.mesh.position.copy(spawn);
+                this.mesh.position.y = 0.9;
+                
+                if (!this.isBot) {
+                    window.FPSCore.camera().position.copy(spawn);
+                    window.FPSCore.camera().position.y = 1.6;
+                    window.FPSCore.updateUI(this);
+                }
+            }
+        }
+        
+        // 봇 AI
+        class BotAI {
+            constructor(character) {
+                this.character = character;
+                this.target = null;
+                this.moveDirection = new THREE.Vector3();
+                this.lastMoveTime = 0;
+            }
+            
+            update() {
+                if (this.character.isDead) return;
+                
+                this.target = player;
+                if (!this.target || this.target.isDead) return;
+                
+                const dist = this.character.mesh.position.distanceTo(this.target.mesh.position);
+                
+                // 플레이어를 향해 회전
+                this.lookAtTarget();
+                
+                // 사거리 내에 있으면 발사
+                if (dist < 30 && this.hasLineOfSight()) {
+                    if (Math.random() < 0.1) this.character.fire();
+                }
+                
+                // 이동
+                if (Date.now() - this.lastMoveTime > 1000) {
+                    this.lastMoveTime = Date.now();
+                    this.moveDirection.set(
+                        (Math.random() - 0.5) * 2,
+                        0,
+                        (Math.random() - 0.5) * 2
+                    ).normalize();
+                }
+                
+                const moveSpeed = 0.08;
+                const newPos = this.character.mesh.position.clone().add(
+                    this.moveDirection.clone().multiplyScalar(moveSpeed)
+                );
+                
+                if (!this.checkCollision(newPos)) {
+                    this.character.mesh.position.x = newPos.x;
+                    this.character.mesh.position.z = newPos.z;
+                }
+            }
+            
+            lookAtTarget() {
+                if (!this.target) return;
+                const targetPos = this.target.mesh.position.clone();
+                targetPos.y = this.character.mesh.position.y;
+                this.character.mesh.lookAt(targetPos);
+            }
+            
+            hasLineOfSight() {
+                return true; // 단순화
+            }
+            
+            checkCollision(position) {
+                const box = new THREE.Box3(
+                    new THREE.Vector3(position.x - 0.3, position.y - 0.9, position.z - 0.3),
+                    new THREE.Vector3(position.x + 0.3, position.y + 0.9, position.z + 0.3)
+                );
+                
+                const mapObjects = window.FPSCore.mapObjects();
+                for (const obj of mapObjects) {
+                    const objBox = new THREE.Box3().setFromObject(obj);
+                    if (objBox.intersectsBox(box)) return true;
+                }
+                return false;
+            }
+        }
+    </script>
+</body>
+</html>
