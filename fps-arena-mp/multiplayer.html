@@ -151,34 +151,31 @@
         
         // 무기 설정
         const WEAPONS = {
-            1: { name: 'rifle', damage: 20, fireRate: 100, ammo: 30, zoom: 1 },
-            2: { name: 'sniper', damage: 80, fireRate: 1500, ammo: 5, zoom: 0.3 },
-            3: { name: 'knife', damage: 50, fireRate: 500, ammo: Infinity, melee: true }
+            1: { name: 'rifle', damage: 20, fireRate: 100, maxAmmo: 30, zoom: 1, reloadTime: 2000 },
+            2: { name: 'sniper', damage: 80, fireRate: 1500, maxAmmo: 5, zoom: 0.3, reloadTime: 3000 },
+            3: { name: 'knife', damage: 50, fireRate: 500, maxAmmo: Infinity, melee: true, reloadTime: 0 }
         };
         let currentWeapon = 1;
         let isZoomed = false;
         let originalFOV = 75;
+        let isReloading = false;
+        let reloadTimeout = null;
         
-        // 무기별 탄약 수 저장
+        // 무기별 탄약 수 저장 (현재 탄약 / 최대 탄약)
         let weaponAmmo = {
-            1: WEAPONS[1].ammo,  // 소총: 30
-            2: WEAPONS[2].ammo,  // 저격총: 5
-            3: WEAPONS[3].ammo   // 칼: Infinity
+            1: WEAPONS[1].maxAmmo,  // 소총: 30
+            2: WEAPONS[2].maxAmmo,  // 저격총: 5
+            3: WEAPONS[3].maxAmmo   // 칼: Infinity
         };
         
         // 입력 이벤트
         document.addEventListener('keydown', (e) => {
             keys[e.code] = true;
             
-            // 디버깅: WASD 키 입력 로그
-            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space'].includes(e.code)) {
-
-            }
-            
             if (!window.FPSCore.gameState().isPlaying) return;
             
             if (e.code === 'KeyR') {
-                send({ type: 'reload' });
+                reloadWeapon();
             }
             if (e.code === 'Digit1') switchWeapon(1);
             if (e.code === 'Digit2') switchWeapon(2);
@@ -311,6 +308,10 @@
                     takeDamage(data.damage);
                     break;
                     
+                case 'playerHit':
+                    updateRemotePlayerHealth(data.playerId, data.health);
+                    break;
+                    
                 case 'playerKilled':
                     handleKill(data.killerId, data.victimId);
                     break;
@@ -403,10 +404,15 @@
             
             // 초기 탄약 설정
             weaponAmmo = {
-                1: WEAPONS[1].ammo,
-                2: WEAPONS[2].ammo,
-                3: WEAPONS[3].ammo
+                1: WEAPONS[1].maxAmmo,
+                2: WEAPONS[2].maxAmmo,
+                3: WEAPONS[3].maxAmmo
             };
+            isReloading = false;
+            if (reloadTimeout) {
+                clearTimeout(reloadTimeout);
+                reloadTimeout = null;
+            }
             currentWeapon = 1;
             window.FPSCore.setGameState('ammo', weaponAmmo[1]);
             
@@ -516,10 +522,62 @@
             return false;
         }
         
+        // 재장전
+        function reloadWeapon() {
+            const weapon = WEAPONS[currentWeapon];
+            
+            // 칼이나 이미 만땅이면 리턴
+            if (weapon.melee || weaponAmmo[currentWeapon] >= weapon.maxAmmo || isReloading) return;
+            
+            isReloading = true;
+            
+            // 재장전 UI 표시
+            showReloadingUI(weapon.reloadTime);
+            
+            reloadTimeout = setTimeout(() => {
+                weaponAmmo[currentWeapon] = weapon.maxAmmo;
+                window.FPSCore.setGameState('ammo', weaponAmmo[currentWeapon]);
+                window.FPSCore.updateUI();
+                isReloading = false;
+                reloadTimeout = null;
+            }, weapon.reloadTime);
+        }
+        
+        // 재장전 UI
+        function showReloadingUI(duration) {
+            const existing = document.getElementById('reloadUI');
+            if (existing) existing.remove();
+            
+            const reloadUI = document.createElement('div');
+            reloadUI.id = 'reloadUI';
+            reloadUI.style.cssText = `
+                position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+                background: rgba(255,165,0,0.9); padding: 10px 30px; border-radius: 5px;
+                color: #000; font-weight: bold; z-index: 150; animation: reloadPulse 0.5s infinite alternate;
+            `;
+            reloadUI.innerHTML = '재장전 중...';
+            document.body.appendChild(reloadUI);
+            
+            // CSS 애니메이션 추가
+            if (!document.getElementById('reloadAnim')) {
+                const style = document.createElement('style');
+                style.id = 'reloadAnim';
+                style.textContent = `
+                    @keyframes reloadPulse { from { opacity: 0.5; } to { opacity: 1; } }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            setTimeout(() => reloadUI.remove(), duration);
+        }
+        
         // 발사
         function shoot() {
             const gameState = window.FPSCore.gameState();
             const weapon = WEAPONS[currentWeapon];
+            
+            // 재장전 중이면 발사 불가
+            if (isReloading) return;
             
             // 발사 간격 체크
             const now = Date.now();
@@ -534,7 +592,11 @@
             }
             
             // 총: 탄약 체크 (무기별 탄약 사용)
-            if (weaponAmmo[currentWeapon] <= 0) return;
+            if (weaponAmmo[currentWeapon] <= 0) {
+                // 탄약 없으면 자동 재장전
+                reloadWeapon();
+                return;
+            }
             weaponAmmo[currentWeapon]--;
             gameState.ammo = weaponAmmo[currentWeapon]; // UI 업데이트용
             
@@ -821,6 +883,24 @@
             }
         }
         
+        function updateRemotePlayerHealth(playerId, health) {
+            const player = remotePlayers.get(playerId);
+            if (player && player.hpBar) {
+                // HP 바 업데이트 (0~1 범위로 클램프)
+                const hpPercent = Math.max(0, Math.min(100, health)) / 100;
+                player.hpBar.scale.x = hpPercent;
+                
+                // HP 색상 변경 (초록->노랑->빨강)
+                if (health > 60) {
+                    player.hpBar.material.color.setHex(0x00ff00);
+                } else if (health > 30) {
+                    player.hpBar.material.color.setHex(0xffff00);
+                } else {
+                    player.hpBar.material.color.setHex(0xff0000);
+                }
+            }
+        }
+        
         function updateRemotePlayer(data) {
             if (!data.position) return;
             const player = remotePlayers.get(data.playerId);
@@ -943,10 +1023,15 @@
             
             // 무기별 탄약 리셋
             weaponAmmo = {
-                1: WEAPONS[1].ammo,
-                2: WEAPONS[2].ammo,
-                3: WEAPONS[3].ammo
+                1: WEAPONS[1].maxAmmo,
+                2: WEAPONS[2].maxAmmo,
+                3: WEAPONS[3].maxAmmo
             };
+            isReloading = false;
+            if (reloadTimeout) {
+                clearTimeout(reloadTimeout);
+                reloadTimeout = null;
+            }
             window.FPSCore.setGameState('ammo', weaponAmmo[currentWeapon]);
             
             const camera = window.FPSCore.camera();
